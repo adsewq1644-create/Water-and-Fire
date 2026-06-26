@@ -16,6 +16,7 @@ Shader "Hidden/WaterAndFire/SelectiveGlowBloom"
         Cull Off
 
         HLSLINCLUDE
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
 
         float _Threshold;

@@ -3,6 +3,10 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))]
 public class PlayerCharacter : MonoBehaviour
 {
+    private const string AimLineShaderName = "WaterAndFire/AimPreviewUnlit";
+    private const int AimLineSortingOffset = -1;
+    private static readonly int MaxBrightnessId = Shader.PropertyToID("_MaxBrightness");
+
     [Header("Identity")]
     [SerializeField] private string playerId = "Player";
     [SerializeField] private ElementType element = ElementType.Water;
@@ -54,6 +58,7 @@ public class PlayerCharacter : MonoBehaviour
     private SpriteRenderer spriteRenderer;
     private LineRenderer trajectoryLine;
     private LineRenderer pullLine;
+    private Material aimLineMaterial;
     private PlayerCharacter partner;
     private Vector3 spawnPosition;
     private float coyoteTimer;
@@ -65,6 +70,8 @@ public class PlayerCharacter : MonoBehaviour
     private float originalGravityScale;
     private bool originalTrigger;
     private RigidbodyType2D originalBodyType;
+    private int originalLayer;
+    private int aimVisualLayer;
     private readonly RaycastHit2D[] groundHits = new RaycastHit2D[6];
     private readonly RaycastHit2D[] sideHits = new RaycastHit2D[6];
     private static PhysicsMaterial2D frictionlessMaterial;
@@ -89,15 +96,13 @@ public class PlayerCharacter : MonoBehaviour
         interactKey = interact;
         fireMouseButton = mouseButton;
         ApplyElementColor();
+        EnsureElementVisualEffect();
     }
 
     public void SetPartner(PlayerCharacter other)
     {
         partner = other;
-        if (bodyCollider != null && other != null && other.BodyCollider != null)
-        {
-            Physics2D.IgnoreCollision(bodyCollider, other.BodyCollider, true);
-        }
+        ApplyPartnerCollisionIgnore();
     }
 
     public void SetSpawn(Vector3 position)
@@ -126,6 +131,7 @@ public class PlayerCharacter : MonoBehaviour
         body.bodyType = RigidbodyType2D.Kinematic;
         body.gravityScale = 0f;
         bodyCollider.isTrigger = true;
+        ApplyPartnerCollisionIgnore();
         UpdateVisualState();
         GamePrototypeManager.Instance?.NotifyPlayerDied(this);
     }
@@ -138,6 +144,7 @@ public class PlayerCharacter : MonoBehaviour
         body.gravityScale = originalGravityScale;
         bodyCollider.isTrigger = originalTrigger;
         body.linearVelocity = Vector2.zero;
+        ApplyPartnerCollisionIgnore();
         UpdateVisualState();
     }
 
@@ -152,49 +159,124 @@ public class PlayerCharacter : MonoBehaviour
         bodyCollider = GetComponent<Collider2D>();
         ApplyFrictionlessColliderMaterial();
         spriteRenderer = GetComponent<SpriteRenderer>();
-        trajectoryLine = GetComponent<LineRenderer>();
-        if (trajectoryLine == null)
+        SetupAimVisuals();
+        originalGravityScale = body.gravityScale;
+        originalTrigger = bodyCollider.isTrigger;
+        originalBodyType = body.bodyType;
+        originalLayer = gameObject.layer;
+        spawnPosition = transform.position;
+        ApplyElementColor();
+        EnsureElementVisualEffect();
+    }
+
+    private void SetupAimVisuals()
+    {
+        LineRenderer legacyLine = GetComponent<LineRenderer>();
+        if (legacyLine != null)
         {
-            trajectoryLine = gameObject.AddComponent<LineRenderer>();
+            legacyLine.enabled = false;
+            Destroy(legacyLine);
         }
+
+        aimVisualLayer = LayerMask.NameToLayer("Default");
+        Shader lineShader = Shader.Find(AimLineShaderName);
+        if (lineShader == null)
+        {
+            lineShader = Shader.Find("Sprites/Default");
+        }
+
+        if (lineShader != null)
+        {
+            aimLineMaterial = new Material(lineShader)
+            {
+                name = "Runtime_AimLine"
+            };
+            if (aimLineMaterial.HasProperty(MaxBrightnessId))
+            {
+                aimLineMaterial.SetFloat(MaxBrightnessId, 0.24f);
+            }
+        }
+
+        trajectoryLine = CreateAimLineRenderer("TrajectoryLine", 20);
         trajectoryLine.enabled = false;
         trajectoryLine.positionCount = trajectoryPoints;
         trajectoryLine.startWidth = 0.04f;
         trajectoryLine.endWidth = 0.04f;
-        trajectoryLine.useWorldSpace = true;
-        trajectoryLine.material = new Material(Shader.Find("Sprites/Default"));
-        trajectoryLine.startColor = new Color(1f, 1f, 1f, 0.75f);
-        trajectoryLine.endColor = new Color(1f, 1f, 1f, 0.25f);
-        trajectoryLine.sortingOrder = 20;
+        trajectoryLine.startColor = new Color(0.55f, 0.55f, 0.55f, 0.46f);
+        trajectoryLine.endColor = new Color(0.45f, 0.45f, 0.45f, 0.12f);
 
-        var pullLineObject = new GameObject("PullForceLine");
-        pullLineObject.transform.SetParent(transform);
-        pullLine = pullLineObject.AddComponent<LineRenderer>();
+        pullLine = CreateAimLineRenderer("PullForceLine", 21);
         pullLine.enabled = false;
         pullLine.positionCount = 2;
         pullLine.startWidth = pullLineWidth;
         pullLine.endWidth = pullLineWidth;
-        pullLine.useWorldSpace = true;
-        pullLine.material = new Material(Shader.Find("Sprites/Default"));
-        pullLine.startColor = new Color(1f, 1f, 1f, 0.9f);
-        pullLine.endColor = element == ElementType.Water ? new Color(0.2f, 0.65f, 1f, 0.9f) : new Color(1f, 0.35f, 0.1f, 0.9f);
-        pullLine.sortingOrder = 21;
-        originalGravityScale = body.gravityScale;
-        originalTrigger = bodyCollider.isTrigger;
-        originalBodyType = body.bodyType;
-        spawnPosition = transform.position;
-        ApplyElementColor();
-        EnsureWaterVisualEffect();
+        pullLine.startColor = new Color(0.55f, 0.55f, 0.55f, 0.52f);
+        pullLine.endColor = new Color(0.38f, 0.38f, 0.38f, 0.52f);
     }
 
-    private void EnsureWaterVisualEffect()
+    private LineRenderer CreateAimLineRenderer(string objectName, int sortingOrder)
     {
-        if (element != ElementType.Water || GetComponent<WaterSpriteWobble>() != null)
+        var lineObject = new GameObject(objectName);
+        lineObject.transform.SetParent(transform, false);
+
+        lineObject.layer = aimVisualLayer >= 0 ? aimVisualLayer : 0;
+
+        LineRenderer line = lineObject.AddComponent<LineRenderer>();
+        line.useWorldSpace = true;
+        line.sortingOrder = GetAimLineSortingOrder(sortingOrder);
+        if (spriteRenderer != null)
+        {
+            line.sortingLayerID = spriteRenderer.sortingLayerID;
+        }
+        if (aimLineMaterial != null)
+        {
+            line.sharedMaterial = aimLineMaterial;
+        }
+
+        return line;
+    }
+
+    private void EnsureElementVisualEffect()
+    {
+        if (element == ElementType.Water)
+        {
+            RemoveComponentIfPresent<FireSpriteFlame>();
+            RemoveComponentIfPresent<FireSpriteEdgeParticles>();
+            EnsureComponent<WaterSpriteWobble>();
+            return;
+        }
+
+        if (element == ElementType.Fire)
+        {
+            RemoveComponentIfPresent<WaterSpriteWobble>();
+            EnsureComponent<FireSpriteFlame>();
+            EnsureComponent<FireSpriteEdgeParticles>();
+        }
+    }
+
+    private void EnsureComponent<T>() where T : Component
+    {
+        if (!TryGetComponent<T>(out _))
+        {
+            gameObject.AddComponent<T>();
+        }
+    }
+
+    private void RemoveComponentIfPresent<T>() where T : Component
+    {
+        if (!TryGetComponent<T>(out T effect))
         {
             return;
         }
 
-        gameObject.AddComponent<WaterSpriteWobble>();
+        if (Application.isPlaying)
+        {
+            Destroy(effect);
+        }
+        else
+        {
+            DestroyImmediate(effect);
+        }
     }
 
     private void ApplyFrictionlessColliderMaterial()
@@ -237,6 +319,16 @@ public class PlayerCharacter : MonoBehaviour
     private bool CanReceiveInput()
     {
         return LifeState == PlayerLifeState.Alive || LifeState == PlayerLifeState.ReviveCaster;
+    }
+
+    private void ApplyPartnerCollisionIgnore()
+    {
+        if (bodyCollider == null || partner == null || partner.BodyCollider == null)
+        {
+            return;
+        }
+
+        Physics2D.IgnoreCollision(bodyCollider, partner.BodyCollider, true);
     }
 
     private void HandleHorizontalMovement()
@@ -404,7 +496,7 @@ public class PlayerCharacter : MonoBehaviour
         renderer.color = element == ElementType.Water ? new Color(0.2f, 0.65f, 1f, 1f) : new Color(1f, 0.35f, 0.1f, 1f);
         renderer.sortingOrder = 5;
 
-        var projectileBody = projectileObject.AddComponent<Rigidbody2D>();
+        projectileObject.AddComponent<Rigidbody2D>();
         var projectileCollider = projectileObject.AddComponent<CircleCollider2D>();
         projectileCollider.radius = 0.16f;
         var projectile = projectileObject.AddComponent<ElementProjectile>();
@@ -452,6 +544,8 @@ public class PlayerCharacter : MonoBehaviour
 
     private void SetAimVisualsVisible(bool visible)
     {
+        EnsureAimVisualLayers();
+
         if (trajectoryLine != null)
         {
             trajectoryLine.enabled = visible;
@@ -460,6 +554,46 @@ public class PlayerCharacter : MonoBehaviour
         {
             pullLine.enabled = visible;
         }
+    }
+
+    private void EnsureAimVisualLayers()
+    {
+        int targetLayer = aimVisualLayer >= 0 ? aimVisualLayer : 0;
+        if (trajectoryLine != null)
+        {
+            trajectoryLine.gameObject.layer = targetLayer;
+            SyncAimLineSorting(trajectoryLine, 20);
+        }
+
+        if (pullLine != null)
+        {
+            pullLine.gameObject.layer = targetLayer;
+            SyncAimLineSorting(pullLine, 21);
+        }
+    }
+
+    private void SyncAimLineSorting(LineRenderer line, int fallbackSortingOrder)
+    {
+        if (line == null)
+        {
+            return;
+        }
+
+        line.sortingOrder = GetAimLineSortingOrder(fallbackSortingOrder);
+        if (spriteRenderer != null)
+        {
+            line.sortingLayerID = spriteRenderer.sortingLayerID;
+        }
+    }
+
+    private int GetAimLineSortingOrder(int fallbackSortingOrder)
+    {
+        if (spriteRenderer == null)
+        {
+            return fallbackSortingOrder;
+        }
+
+        return spriteRenderer.sortingOrder + AimLineSortingOffset;
     }
 
     private void HandleReviveInput()
@@ -525,10 +659,20 @@ public class PlayerCharacter : MonoBehaviour
     private void ApplyGlowLayer()
     {
         int glowLayer = LayerMask.NameToLayer("Glow");
-        if (glowLayer >= 0)
+        if (element == ElementType.Water || element == ElementType.Fire)
         {
-            gameObject.layer = glowLayer;
+            if (glowLayer >= 0)
+            {
+                gameObject.layer = glowLayer;
+            }
+
+            EnsureAimVisualLayers();
+            return;
         }
+
+        int defaultLayer = LayerMask.NameToLayer("Default");
+        gameObject.layer = originalLayer == glowLayer && defaultLayer >= 0 ? defaultLayer : originalLayer;
+        EnsureAimVisualLayers();
     }
 
     private void UpdateVisualState()
@@ -538,10 +682,11 @@ public class PlayerCharacter : MonoBehaviour
             return;
         }
 
+        transform.rotation = Quaternion.identity;
+
         if (LifeState == PlayerLifeState.Dead)
         {
             spriteRenderer.color = deadColor;
-            transform.rotation = Quaternion.Euler(0f, 0f, 90f);
             return;
         }
 
@@ -552,7 +697,6 @@ public class PlayerCharacter : MonoBehaviour
         }
 
         spriteRenderer.color = aliveColor;
-        transform.rotation = Quaternion.identity;
     }
 
     private void OnDrawGizmosSelected()
@@ -563,5 +707,22 @@ public class PlayerCharacter : MonoBehaviour
 
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(transform.position, reviveRange);
+    }
+
+    private void OnDestroy()
+    {
+        if (aimLineMaterial == null)
+        {
+            return;
+        }
+
+        if (Application.isPlaying)
+        {
+            Destroy(aimLineMaterial);
+        }
+        else
+        {
+            DestroyImmediate(aimLineMaterial);
+        }
     }
 }

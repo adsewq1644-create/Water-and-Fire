@@ -44,6 +44,14 @@ public class ElementProjectile : MonoBehaviour
             return;
         }
 
+        var plant = other.GetComponentInParent<GrowablePlant>();
+        if (plant != null)
+        {
+            plant.ApplyElement(element);
+            Destroy(gameObject);
+            return;
+        }
+
         var player = other.GetComponentInParent<PlayerCharacter>();
         if (player != null)
         {

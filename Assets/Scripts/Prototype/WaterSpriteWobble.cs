@@ -5,6 +5,7 @@ using UnityEngine;
 public class WaterSpriteWobble : MonoBehaviour
 {
     private const string ShaderName = "WaterAndFire/SpriteWaterWobble";
+    private const int CurrentPresetVersion = 1;
     private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
     private static readonly int UseRectPlaceholderMaskId = Shader.PropertyToID("_UseRectPlaceholderMask");
     private static readonly int WaterColorAId = Shader.PropertyToID("_WaterColorA");
@@ -45,16 +46,16 @@ public class WaterSpriteWobble : MonoBehaviour
     [Header("Water Art Controls")]
     [SerializeField] private Color deepWaterColor = new Color(0.0745f, 0.3294f, 0.6706f, 1f);
     [SerializeField] private Color softWaterColor = new Color(0.5843f, 0.8039f, 0.9922f, 1f);
-    [SerializeField] private Color innerStreamColor = new Color(0.451f, 1f, 0.8784f, 1f);
-    [SerializeField] private Color rimHighlightColor = new Color(0.8588f, 0.9255f, 0.9255f, 1f);
-    [ColorUsage(false, true)] [SerializeField] private Color glowColor = new Color(0.2235f, 0.6235f, 0.902f, 1f);
+    [SerializeField] private Color innerStreamColor = new Color(0.498f, 0.8314f, 0.7569f, 1f);
+    [SerializeField] private Color rimHighlightColor = new Color(0.7098f, 0.7373f, 0.7373f, 1f);
+    [ColorUsage(false, true)] [SerializeField] private Color glowColor = new Color(0.3725f, 0.5804f, 0.7255f, 1f);
     [Range(0f, 1f)] [SerializeField] private float transparency = 0.72f;
     [Range(0f, 2f)] [SerializeField] private float colorIntensity = 0.92f;
     [Range(0f, 1f)] [SerializeField] private float backgroundVisibility = 0.258f;
     [Range(1f, 16f)] [SerializeField] private float pixelRefractionSize = 3f;
     [Range(8f, 256f)] [SerializeField] private float pixelPatternSize = 43.5f;
     [Range(0f, 2f)] [SerializeField] private float rimStrength = 1.05f;
-    [Range(0f, 8f)] [SerializeField] private float emissionIntensity = 8f;
+    [Range(0f, 8f)] [SerializeField] private float emissionIntensity = 4f;
     [Range(0f, 8f)] [SerializeField] private float rimEmission = 0.1f;
     [Range(0f, 6f)] [SerializeField] private float streamEmission = 1.1f;
     [Range(0f, 4f)] [SerializeField] private float outerGlowStrength = 0f;
@@ -65,21 +66,22 @@ public class WaterSpriteWobble : MonoBehaviour
 
     [Header("Motion Response")]
     [SerializeField] private float idleWobbleStrength = 0.12f;
-    [SerializeField] private float movingWobbleStrength = 0.4f;
+    [SerializeField] private float movingWobbleStrength = 0.35f;
     [SerializeField] private float idleWobbleSpeed = 0.9f;
-    [SerializeField] private float movingWobbleSpeed = 3.5f;
-    [SerializeField] private float idleSparkleStrength = 3f;
-    [SerializeField] private float movingSparkleStrength = 7f;
+    [SerializeField] private float movingWobbleSpeed = 3f;
+    [SerializeField] private float idleSparkleStrength = 2f;
+    [SerializeField] private float movingSparkleStrength = 4.5f;
     [SerializeField] private float idleRefractionStrength = 0.15f;
     [SerializeField] private float movingRefractionStrength = 0.5f;
-    [SerializeField] private float idleSilhouetteWobble = 0.7f;
+    [SerializeField] private float idleSilhouetteWobble = 0.6f;
     [SerializeField] private float movingSilhouetteWobble = 1.4f;
     [SerializeField] private float idleInnerFlowStrength = 0.55f;
     [SerializeField] private float movingInnerFlowStrength = 1.2f;
-    [SerializeField] private float idleBackgroundRefraction = 1.15f;
-    [SerializeField] private float movingBackgroundRefraction = 0.34f;
+    [SerializeField] private float idleBackgroundRefraction = 0.5f;
+    [SerializeField] private float movingBackgroundRefraction = 0.45f;
     [SerializeField] private float speedForMaxWobble = 8f;
-    [SerializeField] private float response = 30f;
+    [SerializeField] private float response = 25f;
+    [SerializeField, HideInInspector] private int presetVersion;
 
     private SpriteRenderer spriteRenderer;
     private Rigidbody2D body;
@@ -100,7 +102,7 @@ public class WaterSpriteWobble : MonoBehaviour
         body = GetComponent<Rigidbody2D>();
         propertyBlock = new MaterialPropertyBlock();
         LoadDefaultTexturesIfNeeded();
-        ApplyDefaultPreset();
+        UpgradePresetIfNeeded();
         useRectPlaceholderMask = ShouldUseRectPlaceholderMask();
         ApplyWaterMaterial();
 
@@ -206,9 +208,9 @@ public class WaterSpriteWobble : MonoBehaviour
     {
         deepWaterColor = new Color(0.0745f, 0.3294f, 0.6706f, 1f);
         softWaterColor = new Color(0.5843f, 0.8039f, 0.9922f, 1f);
-        innerStreamColor = new Color(0.451f, 1f, 0.8784f, 1f);
-        rimHighlightColor = new Color(0.8588f, 0.9255f, 0.9255f, 1f);
-        glowColor = new Color(0.2235f, 0.6235f, 0.902f, 1f);
+        innerStreamColor = new Color(0.498f, 0.8314f, 0.7569f, 1f);
+        rimHighlightColor = new Color(0.7098f, 0.7373f, 0.7373f, 1f);
+        glowColor = new Color(0.3725f, 0.5804f, 0.7255f, 1f);
 
         transparency = 0.72f;
         colorIntensity = 0.92f;
@@ -216,7 +218,7 @@ public class WaterSpriteWobble : MonoBehaviour
         pixelRefractionSize = 3f;
         pixelPatternSize = 43.5f;
         rimStrength = 1.05f;
-        emissionIntensity = 8f;
+        emissionIntensity = 4f;
         rimEmission = 0.1f;
         streamEmission = 1.1f;
         outerGlowStrength = 0f;
@@ -226,21 +228,32 @@ public class WaterSpriteWobble : MonoBehaviour
         noiseTiling = 3.4f;
 
         idleWobbleStrength = 0.12f;
-        movingWobbleStrength = 0.4f;
+        movingWobbleStrength = 0.35f;
         idleWobbleSpeed = 0.9f;
-        movingWobbleSpeed = 3.5f;
-        idleSparkleStrength = 3f;
-        movingSparkleStrength = 7f;
+        movingWobbleSpeed = 3f;
+        idleSparkleStrength = 2f;
+        movingSparkleStrength = 4.5f;
         idleRefractionStrength = 0.15f;
         movingRefractionStrength = 0.5f;
-        idleSilhouetteWobble = 0.7f;
+        idleSilhouetteWobble = 0.6f;
         movingSilhouetteWobble = 1.4f;
         idleInnerFlowStrength = 0.55f;
         movingInnerFlowStrength = 1.2f;
-        idleBackgroundRefraction = 1.15f;
-        movingBackgroundRefraction = 0.34f;
+        idleBackgroundRefraction = 0.5f;
+        movingBackgroundRefraction = 0.45f;
         speedForMaxWobble = 8f;
-        response = 30f;
+        response = 25f;
+        presetVersion = CurrentPresetVersion;
+    }
+
+    private void UpgradePresetIfNeeded()
+    {
+        if (presetVersion == CurrentPresetVersion)
+        {
+            return;
+        }
+
+        ApplyDefaultPreset();
     }
 
     private void ApplyTexture(int propertyId, Texture texture)
@@ -262,6 +275,7 @@ public class WaterSpriteWobble : MonoBehaviour
             return;
         }
 
+        propertyBlock ??= new MaterialPropertyBlock();
         spriteRenderer.GetPropertyBlock(propertyBlock);
         propertyBlock.SetFloat(UseRectPlaceholderMaskId, useRectPlaceholderMask ? 1f : 0f);
         propertyBlock.SetColor(WaterColorAId, deepWaterColor);
