@@ -310,7 +310,6 @@ GameObject:
   - component: {fileID: 275496473}
   - component: {fileID: 275496475}
   - component: {fileID: 275496474}
-  - component: {fileID: 275496476}
   m_Layer: 0
   m_Name: Player2_Fire
   m_TagString: Untagged
@@ -501,7 +500,7 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 0.78515625, y: 1.5}
+    oldSize: {x: 0.8141026, y: 1.5}
     newSize: {x: 1, y: 1}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
@@ -560,18 +559,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   flameTexture: {fileID: 2800000, guid: 082ec2bf50e5b0a47ad0fd5727419acd, type: 3}
   smokeTexture: {fileID: 2800000, guid: 296919e0817a9e944873a1f2c15b4a4c, type: 3}
-  coreColor: {r: 1, g: 0.92, b: 0.22, a: 1}
+  coreColor: {r: 0.5, g: 0.46, b: 0.11, a: 1}
   midColor: {r: 1, g: 0.45, b: 0.06, a: 1}
   edgeColor: {r: 0.95, g: 0.17, b: 0.03, a: 1}
   glowColor: {r: 1, g: 0.34, b: 0.06, a: 1}
   outlineColor: {r: 0.38, g: 0.04, b: 0.015, a: 1}
   smokeColor: {r: 0.07, g: 0.055, b: 0.045, a: 1}
-  bodyAlpha: 0.98
+  bodyAlpha: 0.7
   pixelGrid: 44
   flameTiling: 2.8
   smokeAmount: 0.14
   emberAmount: 0.32
-  emissionIntensity: 1.45
+  emissionIntensity: 0.5
   edgeBurn: 1.2
   coreStrength: 1.25
   outlineWidth: 0
@@ -579,38 +578,16 @@ MonoBehaviour:
   outerFlameWidth: 6
   outerFlameStrength: 0.55
   outerFlameWobble: 0.85
-  silhouetteMelt: 0.58
+  silhouetteMelt: 1
   idleFlameSpeed: 2.6
   movingFlameSpeed: 4.4
-  idleShapeShift: 0.44
-  movingShapeShift: 0.72
+  idleShapeShift: 1.2
+  movingShapeShift: 2
   windStrength: 0.55
   maxWindBend: 0.95
   speedForMaxWind: 7
   response: 20
   presetVersion: 5
---- !u!114 &275496476
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 275496467}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e52671fd22184615bdca51527c067327, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  idleFrame: {fileID: 21300000, guid: c53d9c5dcfb557f48a3174979b30ad45, type: 3}
-  walkFrames:
-  - {fileID: 21300000, guid: c53d9c5dcfb557f48a3174979b30ad45, type: 3}
-  - {fileID: 21300000, guid: 14ff40d0903c1ce49a6d21f15b7fbf4d, type: 3}
-  - {fileID: 21300000, guid: 04dac713486c75241a37f8fe944e5934, type: 3}
-  - {fileID: 21300000, guid: 7e57e38b756658f4083ff820b52dd559, type: 3}
-  - {fileID: 21300000, guid: cb45f1c511b60c14c8096bf3bd319435, type: 3}
-  - {fileID: 21300000, guid: bc7a69467361a5a4890c56cb19bdac73, type: 3}
-  framesPerSecond: 10
-  moveThreshold: 0.1
 --- !u!1 &449580329
 GameObject:
   m_ObjectHideFlags: 0
@@ -1908,7 +1885,7 @@ MonoBehaviour:
   backgroundVisibility: 0.258
   pixelRefractionSize: 3
   pixelPatternSize: 43.5
-  rimStrength: 1.05
+  rimStrength: 2
   emissionIntensity: 4
   rimEmission: 0.1
   streamEmission: 1.1
@@ -1925,8 +1902,8 @@ MonoBehaviour:
   movingSparkleStrength: 4.5
   idleRefractionStrength: 0.15
   movingRefractionStrength: 0.5
-  idleSilhouetteWobble: 0.6
-  movingSilhouetteWobble: 1.4
+  idleSilhouetteWobble: 1.5
+  movingSilhouetteWobble: 2
   idleInnerFlowStrength: 0.55
   movingInnerFlowStrength: 1.2
   idleBackgroundRefraction: 0.5
