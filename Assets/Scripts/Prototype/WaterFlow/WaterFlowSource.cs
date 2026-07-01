@@ -6,8 +6,6 @@ using UnityEngine;
 public class WaterFlowSource : MonoBehaviour
 {
     private const string GeneratedRootName = "__WaterBlobGenerated";
-    private const string LegacyGridRootName = "__WaterGridFlowGenerated";
-    private const string LegacyLineRootName = "__WaterFlowGenerated";
     private const string SpriteFallbackShader = "Sprites/Default";
 
     private static Material defaultSpriteMaterial;
@@ -76,14 +74,13 @@ public class WaterFlowSource : MonoBehaviour
     private void OnEnable()
     {
         ClearGeneratedVisuals();
+        ClearLegacyGeneratedChildren();
     }
 
     private void LateUpdate()
     {
         if (!Application.isPlaying)
         {
-            ClearGeneratedRoot(LegacyGridRootName);
-            ClearGeneratedRoot(LegacyLineRootName);
             return;
         }
 
@@ -303,10 +300,37 @@ public class WaterFlowSource : MonoBehaviour
     private void ClearGeneratedVisuals()
     {
         ClearGeneratedRoot(GeneratedRootName);
-        ClearGeneratedRoot(LegacyGridRootName);
-        ClearGeneratedRoot(LegacyLineRootName);
         activeBlobs.Clear();
         generatedRoot = null;
+    }
+
+    private void ClearLegacyGeneratedChildren()
+    {
+        for (int i = transform.childCount - 1; i >= 0; i--)
+        {
+            Transform child = transform.GetChild(i);
+            if (!IsLegacyGeneratedChild(child.name))
+            {
+                continue;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(child.gameObject);
+            }
+            else
+            {
+                DestroyImmediate(child.gameObject);
+            }
+        }
+    }
+
+    private static bool IsLegacyGeneratedChild(string childName)
+    {
+        return childName == "WaterVisual_Body" ||
+            childName.StartsWith("WaterEdge_", System.StringComparison.Ordinal) ||
+            childName.StartsWith("WaterHazard_", System.StringComparison.Ordinal) ||
+            childName.StartsWith("WaterCell_", System.StringComparison.Ordinal);
     }
 
     private void ClearGeneratedRoot(string rootName)
