@@ -6,9 +6,7 @@ using UnityEngine;
 public class WaterFlowSource : MonoBehaviour
 {
     private const string GeneratedRootName = "__WaterBlobGenerated";
-    private const string SpriteFallbackShader = "Sprites/Default";
 
-    private static Material defaultSpriteMaterial;
     [Header("Blob Spawn")]
     [SerializeField] private bool spawnBlobsInPlayMode = true;
     [SerializeField] private float spawnInterval = 0.12f;
@@ -84,7 +82,7 @@ public class WaterFlowSource : MonoBehaviour
     public IReadOnlyList<WaterFlowBlob> ActiveBlobs => activeBlobs;
     public Color BlobCoreColor => blobColor;
     public Color BlobEdgeColor => blobEdgeColor;
-    public Material BlobVisualMaterial => GetVisibleBlobMaterial(blobMaterial);
+    public Material BlobVisualMaterial => IsUsableSpriteMaterial(blobMaterial) ? blobMaterial : null;
     public bool UseMetaballVisual => useMetaballVisual;
     public float MetaballCellSize => metaballCellSize;
     public float MetaballInfluenceScale => metaballInfluenceScale;
@@ -425,34 +423,6 @@ public class WaterFlowSource : MonoBehaviour
         Gizmos.DrawLine(transform.position, transform.position + Vector3.down * (groundProbeDistance + ledgeProbeDistance));
     }
 
-    private static Material GetDefaultSpriteMaterial()
-    {
-        if (defaultSpriteMaterial == null)
-        {
-            Shader shader = Shader.Find(SpriteFallbackShader);
-            if (shader == null)
-            {
-                return null;
-            }
-
-            defaultSpriteMaterial = new Material(shader);
-            defaultSpriteMaterial.name = "WaterBlob_SpriteDefaultMaterial";
-            defaultSpriteMaterial.hideFlags = HideFlags.HideAndDontSave;
-        }
-
-        return defaultSpriteMaterial;
-    }
-
-    private static Material GetVisibleBlobMaterial(Material requestedMaterial)
-    {
-        if (IsUsableSpriteMaterial(requestedMaterial))
-        {
-            return requestedMaterial;
-        }
-
-        return GetDefaultSpriteMaterial();
-    }
-
     private static bool IsUsableSpriteMaterial(Material material)
     {
         if (material == null || material.shader == null)
@@ -474,6 +444,41 @@ public class WaterFlowMetaballVisual : MonoBehaviour
     private const string CoreObjectName = "WaterMetaball_Core";
     private const string EdgeObjectName = "WaterMetaball_Edge";
     private const string FallbackShaderName = "Sprites/Default";
+    private const string WaterWobbleShaderName = "WaterAndFire/SpriteWaterWobble";
+    private const float WorldUvScale = 0.35f;
+
+    private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
+    private static readonly int PatternTexId = Shader.PropertyToID("_PatternTex");
+    private static readonly int NoiseTexId = Shader.PropertyToID("_NoiseTex");
+    private static readonly int RefractionTexId = Shader.PropertyToID("_RefractionTex");
+    private static readonly int UseRectPlaceholderMaskId = Shader.PropertyToID("_UseRectPlaceholderMask");
+    private static readonly int WaterColorAId = Shader.PropertyToID("_WaterColorA");
+    private static readonly int WaterColorBId = Shader.PropertyToID("_WaterColorB");
+    private static readonly int StreamColorId = Shader.PropertyToID("_StreamColor");
+    private static readonly int FoamColorId = Shader.PropertyToID("_FoamColor");
+    private static readonly int GlowColorId = Shader.PropertyToID("_GlowColor");
+    private static readonly int BodyAlphaId = Shader.PropertyToID("_BodyAlpha");
+    private static readonly int EdgeSoftnessId = Shader.PropertyToID("_EdgeSoftness");
+    private static readonly int RimStrengthId = Shader.PropertyToID("_RimStrength");
+    private static readonly int InnerFlowStrengthId = Shader.PropertyToID("_InnerFlowStrength");
+    private static readonly int ColorIntensityId = Shader.PropertyToID("_ColorIntensity");
+    private static readonly int BackgroundVisibilityId = Shader.PropertyToID("_BackgroundVisibility");
+    private static readonly int BackgroundRefractionStrengthId = Shader.PropertyToID("_BackgroundRefractionStrength");
+    private static readonly int PixelRefractionSizeId = Shader.PropertyToID("_PixelRefractionSize");
+    private static readonly int PixelPatternSizeId = Shader.PropertyToID("_PixelPatternSize");
+    private static readonly int EmissionIntensityId = Shader.PropertyToID("_EmissionIntensity");
+    private static readonly int RimEmissionId = Shader.PropertyToID("_RimEmission");
+    private static readonly int StreamEmissionId = Shader.PropertyToID("_StreamEmission");
+    private static readonly int OuterGlowStrengthId = Shader.PropertyToID("_OuterGlowStrength");
+    private static readonly int OuterGlowSizeId = Shader.PropertyToID("_OuterGlowSize");
+    private static readonly int PatternTilingId = Shader.PropertyToID("_PatternTiling");
+    private static readonly int NoiseTilingId = Shader.PropertyToID("_NoiseTiling");
+    private static readonly int RefractionTilingId = Shader.PropertyToID("_RefractionTiling");
+    private static readonly int WobbleStrengthId = Shader.PropertyToID("_WobbleStrength");
+    private static readonly int WobbleSpeedId = Shader.PropertyToID("_WobbleSpeed");
+    private static readonly int RefractionStrengthId = Shader.PropertyToID("_RefractionStrength");
+    private static readonly int SparkleStrengthId = Shader.PropertyToID("_SparkleStrength");
+    private static readonly int SilhouetteWobbleId = Shader.PropertyToID("_SilhouetteWobble");
 
     private readonly List<Vector3> vertices = new List<Vector3>(4096);
     private readonly List<int> triangles = new List<int>(8192);
@@ -608,30 +613,37 @@ public class WaterFlowMetaballVisual : MonoBehaviour
 
     private Material CreateRuntimeMaterial(WaterFlowSource source, Color color, string materialName)
     {
-        Shader shader = null;
         Material sourceMaterial = source.BlobVisualMaterial;
-        if (sourceMaterial != null && sourceMaterial.shader != null)
+        Material material;
+
+        if (sourceMaterial != null)
         {
-            shader = sourceMaterial.shader;
+            material = new Material(sourceMaterial)
+            {
+                name = materialName,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+        }
+        else
+        {
+            Shader shader = Shader.Find(WaterWobbleShaderName);
+            if (shader == null)
+            {
+                shader = Shader.Find(FallbackShaderName);
+            }
+
+            if (shader == null)
+            {
+                shader = Shader.Find("Universal Render Pipeline/Unlit");
+            }
+
+            material = new Material(shader)
+            {
+                name = materialName,
+                hideFlags = HideFlags.HideAndDontSave
+            };
         }
 
-        if (shader == null)
-        {
-            shader = Shader.Find(FallbackShaderName);
-        }
-
-        if (shader == null)
-        {
-            shader = Shader.Find("Universal Render Pipeline/Unlit");
-        }
-
-        Material material = new Material(shader)
-        {
-            name = materialName,
-            hideFlags = HideFlags.HideAndDontSave,
-            mainTexture = Texture2D.whiteTexture,
-            color = color
-        };
         UpdateMaterial(material, color);
         return material;
     }
@@ -649,10 +661,60 @@ public class WaterFlowMetaballVisual : MonoBehaviour
             material.SetColor("_Color", color);
         }
 
-        if (material.HasProperty("_MainTex"))
+        if (material.HasProperty(MainTexId))
         {
-            material.SetTexture("_MainTex", Texture2D.whiteTexture);
+            material.SetTexture(MainTexId, Texture2D.whiteTexture);
         }
+
+        if (material.shader != null && material.shader.name == WaterWobbleShaderName)
+        {
+            ConfigureWaterWobbleMaterial(material, color);
+        }
+    }
+
+    private static void ConfigureWaterWobbleMaterial(Material material, Color color)
+    {
+        material.SetFloat(UseRectPlaceholderMaskId, 0f);
+        material.SetColor(WaterColorAId, new Color(0.0745f, 0.3294f, 0.6706f, 1f));
+        material.SetColor(WaterColorBId, new Color(0.5843f, 0.8039f, 0.9922f, 1f));
+        material.SetColor(StreamColorId, new Color(0.498f, 0.8314f, 0.7569f, 1f));
+        material.SetColor(FoamColorId, new Color(0.86f, 0.96f, 1f, 1f));
+        material.SetColor(GlowColorId, new Color(0.2235f, 0.6235f, 0.902f, 1f));
+
+        material.SetFloat(BodyAlphaId, Mathf.Clamp01(color.a));
+        material.SetFloat(EdgeSoftnessId, 0.045f);
+        material.SetFloat(RimStrengthId, 0.7f);
+        material.SetFloat(InnerFlowStrengthId, 0.85f);
+        material.SetFloat(ColorIntensityId, 1f);
+        material.SetFloat(BackgroundVisibilityId, 0.06f);
+        material.SetFloat(BackgroundRefractionStrengthId, 0.16f);
+        material.SetFloat(PixelRefractionSizeId, 3f);
+        material.SetFloat(PixelPatternSizeId, 43.5f);
+        material.SetFloat(EmissionIntensityId, 1.4f);
+        material.SetFloat(RimEmissionId, 0.15f);
+        material.SetFloat(StreamEmissionId, 0.75f);
+        material.SetFloat(OuterGlowStrengthId, 0f);
+        material.SetFloat(OuterGlowSizeId, 1f);
+        material.SetFloat(PatternTilingId, 1.35f);
+        material.SetFloat(NoiseTilingId, 3.4f);
+        material.SetFloat(RefractionTilingId, 2.2f);
+        material.SetFloat(WobbleStrengthId, 0.12f);
+        material.SetFloat(WobbleSpeedId, 0.9f);
+        material.SetFloat(RefractionStrengthId, 0.15f);
+        material.SetFloat(SparkleStrengthId, 1.15f);
+        material.SetFloat(SilhouetteWobbleId, 0.15f);
+
+        ApplyTextureOrFallback(material, PatternTexId, Resources.Load<Texture2D>("WaterShader/Water_MainPattern"));
+        ApplyTextureOrFallback(material, NoiseTexId, Resources.Load<Texture2D>("WaterShader/Water_Noise"));
+        ApplyTextureOrFallback(material, RefractionTexId, Resources.Load<Texture2D>("WaterShader/Water_Refraction"));
+    }
+
+    private static void ApplyTextureOrFallback(Material material, int propertyId, Texture2D texture)
+    {
+        Texture2D resolvedTexture = texture != null ? texture : Texture2D.grayTexture;
+        resolvedTexture.wrapMode = TextureWrapMode.Repeat;
+        resolvedTexture.filterMode = FilterMode.Bilinear;
+        material.SetTexture(propertyId, resolvedTexture);
     }
 
     private bool ShouldSkipFrame(WaterFlowSource source)
@@ -913,7 +975,7 @@ public class WaterFlowMetaballVisual : MonoBehaviour
         {
             vertices.Add(transform.InverseTransformPoint(polygon[i]));
             colors.Add(color);
-            uvs.Add(Vector2.zero);
+            uvs.Add(new Vector2(polygon[i].x, polygon[i].y) * WorldUvScale);
         }
 
         for (int i = 1; i < count - 1; i++)
