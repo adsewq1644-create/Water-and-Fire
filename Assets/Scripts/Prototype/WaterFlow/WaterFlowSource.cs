@@ -8,183 +8,91 @@ public class WaterFlowSource : MonoBehaviour
     private const string GeneratedRootName = "__WaterBlobGenerated";
     private const string LegacyGridRootName = "__WaterGridFlowGenerated";
     private const string LegacyLineRootName = "__WaterFlowGenerated";
-    private const string BlobMaterialShader = "WaterAndFire/WaterBlob";
     private const string SpriteFallbackShader = "Sprites/Default";
 
-    private static Material defaultBlobMaterial;
+    private static Material defaultSpriteMaterial;
     private static Sprite defaultBlobSprite;
-
-    [Header("Grid Flow")]
-    [SerializeField] private float cellSize = 0.45f;
-    [SerializeField, Min(1)] private int sourceWidthInCells = 2;
-    [SerializeField, Min(1)] private int maxCells = 240;
-    [SerializeField, Min(1)] private int maxDepth = 8;
-    [SerializeField, Min(1)] private int maxFallCells = 32;
-    [SerializeField, Min(0)] private int maxSpreadCells = 10;
-    [SerializeField] private bool spreadWhenBlocked = true;
-    [SerializeField] private LayerMask solidMask = ~0;
-    [SerializeField] private bool ignorePlayerCharacters = true;
-    [SerializeField] private bool ignoreTriggerColliders = true;
-    [SerializeField] private float solidProbeScale = 0.86f;
-    [SerializeField] private bool rebuildInPlayMode = true;
-    [SerializeField] private bool rebuildInEditMode = true;
-    [SerializeField] private float rebuildInterval = 0.12f;
 
     [Header("Blob Spawn")]
     [SerializeField] private bool spawnBlobsInPlayMode = true;
-    [SerializeField] private float spawnInterval = 0.08f;
+    [SerializeField] private float spawnInterval = 0.12f;
     [SerializeField] private int blobsPerSpawn = 1;
-    [SerializeField] private int maxActiveBlobs = 90;
-    [SerializeField] private float spawnJitter = 0.08f;
-    [SerializeField] private float blobLifetime = 6f;
+    [SerializeField] private int maxActiveBlobs = 55;
+    [SerializeField] private float spawnWidth = 0.35f;
+    [SerializeField] private float spawnJitter = 0.04f;
+    [SerializeField] private float blobLifetime = 4.5f;
+
+    [Header("Collision")]
+    [SerializeField] private LayerMask solidMask = ~0;
+    [SerializeField] private bool ignorePlayerCharacters = true;
+    [SerializeField] private bool ignoreTriggerColliders = true;
+    [SerializeField] private float groundProbeDistance = 0.1f;
+    [SerializeField] private float sideProbeDistance = 0.07f;
+    [SerializeField] private float ledgeProbeDistance = 0.22f;
+    [SerializeField] private float surfaceClearance = 0.01f;
 
     [Header("Blob Motion")]
-    [SerializeField] private float fallSpeed = 3.7f;
-    [SerializeField] private float spreadSpeed = 2.1f;
-    [SerializeField] private float settleSpeed = 1.2f;
-    [SerializeField] private float visualWobbleAmount = 0.055f;
-    [SerializeField] private float visualWobbleSpeed = 5.5f;
+    [SerializeField] private float gravity = 12f;
+    [SerializeField] private float maxFallSpeed = 5.5f;
+    [SerializeField] private float spreadSpeed = 1.45f;
+    [SerializeField] private float fallDriftSpeed = 0.18f;
+    [SerializeField] private float horizontalAcceleration = 10f;
+    [SerializeField] private float edgeDropVelocity = 1.2f;
 
     [Header("Blob Visual")]
     [SerializeField] private Sprite blobSprite;
     [SerializeField] private Material blobMaterial;
     [SerializeField] private Color blobColor = new Color(0.36f, 0.92f, 1f, 0.76f);
-    [SerializeField] private float blobSize = 0.62f;
-    [SerializeField] private float blobSizeRandom = 0.16f;
+    [SerializeField] private float blobSize = 0.28f;
+    [SerializeField] private float blobSizeRandom = 0.06f;
+    [SerializeField] private float visualWobbleAmount = 0.045f;
+    [SerializeField] private float visualWobbleSpeed = 5.5f;
     [SerializeField] private int sortingOrder = 20;
 
     [Header("Hazard")]
     [SerializeField] private bool blobIsHazard = true;
-    [SerializeField] private float hazardRadiusScale = 0.42f;
+    [SerializeField] private float hazardRadiusScale = 0.46f;
 
     [Header("Debug")]
     [SerializeField] private bool showGizmos = true;
 
-    private readonly HashSet<Vector2Int> occupiedCells = new HashSet<Vector2Int>();
-    private readonly List<Vector2Int> orderedCells = new List<Vector2Int>();
     private readonly List<WaterFlowBlob> activeBlobs = new List<WaterFlowBlob>();
     private Transform generatedRoot;
-    private float nextRebuildTime;
     private float nextSpawnTime;
-    private int lastBuildHash;
-    private Vector3 lastPosition;
-    private int spawnCursor;
 
-    private float CellSize => Mathf.Max(0.05f, cellSize);
-
-    public float FallSpeed => fallSpeed;
+    public float GroundProbeDistance => groundProbeDistance;
+    public float LedgeProbeDistance => ledgeProbeDistance;
+    public float SurfaceClearance => surfaceClearance;
+    public float Gravity => gravity;
+    public float MaxFallSpeed => maxFallSpeed;
     public float SpreadSpeed => spreadSpeed;
-    public float SettleSpeed => settleSpeed;
+    public float FallDriftSpeed => fallDriftSpeed;
+    public float HorizontalAcceleration => horizontalAcceleration;
+    public float EdgeDropVelocity => edgeDropVelocity;
     public float VisualWobbleAmount => visualWobbleAmount;
     public float VisualWobbleSpeed => visualWobbleSpeed;
     public float BlobLifetime => blobLifetime;
 
-    public void RebuildFlow()
-    {
-        occupiedCells.Clear();
-        orderedCells.Clear();
-
-        int width = Mathf.Max(1, sourceWidthInCells);
-        int halfWidth = width / 2;
-        for (int i = 0; i < width; i++)
-        {
-            int x = i - halfWidth;
-            if (width % 2 == 0 && i >= halfWidth)
-            {
-                x += 1;
-            }
-
-            TraceDown(new Vector2Int(x, 0), maxDepth);
-        }
-
-        RememberBuildState();
-    }
-
-    public bool TryGetNextBlobCell(Vector2Int currentCell, ref int horizontalDirection, out Vector2Int nextCell)
-    {
-        Vector2Int below = currentCell + Vector2Int.down;
-        if (occupiedCells.Contains(below))
-        {
-            horizontalDirection = 0;
-            nextCell = below;
-            return true;
-        }
-
-        Vector2Int preferred = currentCell + new Vector2Int(horizontalDirection, 0);
-        if (horizontalDirection != 0 && occupiedCells.Contains(preferred))
-        {
-            nextCell = preferred;
-            return true;
-        }
-
-        bool canLeft = occupiedCells.Contains(currentCell + Vector2Int.left);
-        bool canRight = occupiedCells.Contains(currentCell + Vector2Int.right);
-        if (canLeft && canRight)
-        {
-            horizontalDirection = Random.value < 0.5f ? -1 : 1;
-            nextCell = currentCell + new Vector2Int(horizontalDirection, 0);
-            return true;
-        }
-
-        if (canLeft)
-        {
-            horizontalDirection = -1;
-            nextCell = currentCell + Vector2Int.left;
-            return true;
-        }
-
-        if (canRight)
-        {
-            horizontalDirection = 1;
-            nextCell = currentCell + Vector2Int.right;
-            return true;
-        }
-
-        nextCell = currentCell;
-        return false;
-    }
-
-    public Vector2 CellToWorldPosition(Vector2Int cell)
-    {
-        return (Vector2)transform.position + new Vector2(cell.x * CellSize, cell.y * CellSize);
-    }
-
-    public bool IsFlowCell(Vector2Int cell)
-    {
-        return occupiedCells.Contains(cell);
-    }
-
     private void OnEnable()
     {
         ClearGeneratedVisuals();
-        RebuildFlow();
     }
 
     private void LateUpdate()
     {
-        if (Application.isPlaying)
+        if (!Application.isPlaying)
         {
-            if (rebuildInPlayMode && Time.time >= nextRebuildTime)
-            {
-                nextRebuildTime = Time.time + Mathf.Max(0.02f, rebuildInterval);
-                RebuildFlow();
-            }
-
-            if (spawnBlobsInPlayMode)
-            {
-                SpawnBlobsIfNeeded();
-            }
-
-            CleanupDeadBlobReferences();
+            ClearGeneratedRoot(LegacyGridRootName);
+            ClearGeneratedRoot(LegacyLineRootName);
+            return;
         }
-        else
+
+        if (spawnBlobsInPlayMode)
         {
-            if (rebuildInEditMode && IsBuildDirty())
-            {
-                ClearGeneratedVisuals();
-                RebuildFlow();
-            }
+            SpawnBlobsIfNeeded();
         }
+
+        CleanupDeadBlobReferences();
     }
 
     private void OnDisable()
@@ -194,140 +102,32 @@ public class WaterFlowSource : MonoBehaviour
 
     private void OnValidate()
     {
-        cellSize = Mathf.Max(0.05f, cellSize);
-        sourceWidthInCells = Mathf.Max(1, sourceWidthInCells);
-        maxCells = Mathf.Max(1, maxCells);
-        maxDepth = Mathf.Max(1, maxDepth);
-        maxFallCells = Mathf.Max(1, maxFallCells);
-        maxSpreadCells = Mathf.Max(0, maxSpreadCells);
-        solidProbeScale = Mathf.Clamp(solidProbeScale, 0.1f, 1.25f);
-        rebuildInterval = Mathf.Max(0.02f, rebuildInterval);
-        spawnInterval = Mathf.Max(0.01f, spawnInterval);
+        spawnInterval = Mathf.Max(0.02f, spawnInterval);
         blobsPerSpawn = Mathf.Max(1, blobsPerSpawn);
         maxActiveBlobs = Mathf.Max(1, maxActiveBlobs);
+        spawnWidth = Mathf.Max(0f, spawnWidth);
         spawnJitter = Mathf.Max(0f, spawnJitter);
-        blobLifetime = Mathf.Max(0.2f, blobLifetime);
-        fallSpeed = Mathf.Max(0.01f, fallSpeed);
-        spreadSpeed = Mathf.Max(0.01f, spreadSpeed);
-        settleSpeed = Mathf.Max(0.01f, settleSpeed);
+        blobLifetime = Mathf.Max(0.3f, blobLifetime);
+        groundProbeDistance = Mathf.Max(0.01f, groundProbeDistance);
+        sideProbeDistance = Mathf.Max(0.01f, sideProbeDistance);
+        ledgeProbeDistance = Mathf.Max(0.01f, ledgeProbeDistance);
+        surfaceClearance = Mathf.Max(0f, surfaceClearance);
+        gravity = Mathf.Max(0.01f, gravity);
+        maxFallSpeed = Mathf.Max(0.01f, maxFallSpeed);
+        spreadSpeed = Mathf.Max(0f, spreadSpeed);
+        fallDriftSpeed = Mathf.Max(0f, fallDriftSpeed);
+        horizontalAcceleration = Mathf.Max(0.01f, horizontalAcceleration);
+        edgeDropVelocity = Mathf.Max(0f, edgeDropVelocity);
+        blobSize = Mathf.Max(0.02f, blobSize);
+        blobSizeRandom = Mathf.Max(0f, blobSizeRandom);
         visualWobbleAmount = Mathf.Max(0f, visualWobbleAmount);
         visualWobbleSpeed = Mathf.Max(0f, visualWobbleSpeed);
-        blobSize = Mathf.Max(0.01f, blobSize);
-        blobSizeRandom = Mathf.Max(0f, blobSizeRandom);
         hazardRadiusScale = Mathf.Clamp(hazardRadiusScale, 0.05f, 1.5f);
-        lastBuildHash = 0;
-    }
-
-    private void TraceDown(Vector2Int startCell, int remainingDepth)
-    {
-        if (remainingDepth <= 0 || occupiedCells.Count >= maxCells)
-        {
-            return;
-        }
-
-        Vector2Int cell = startCell;
-        for (int i = 0; i < maxFallCells && occupiedCells.Count < maxCells; i++)
-        {
-            if (IsSolidCell(cell))
-            {
-                return;
-            }
-
-            AddWaterCell(cell);
-
-            Vector2Int below = cell + Vector2Int.down;
-            if (IsSolidCell(below))
-            {
-                if (spreadWhenBlocked)
-                {
-                    SpreadSideways(cell, remainingDepth - 1);
-                }
-
-                return;
-            }
-
-            cell = below;
-        }
-    }
-
-    private void SpreadSideways(Vector2Int centerCell, int remainingDepth)
-    {
-        if (remainingDepth <= 0 || maxSpreadCells <= 0)
-        {
-            return;
-        }
-
-        SpreadDirection(centerCell, Vector2Int.left, remainingDepth);
-        SpreadDirection(centerCell, Vector2Int.right, remainingDepth);
-    }
-
-    private void SpreadDirection(Vector2Int centerCell, Vector2Int direction, int remainingDepth)
-    {
-        for (int i = 1; i <= maxSpreadCells && occupiedCells.Count < maxCells; i++)
-        {
-            Vector2Int spreadCell = centerCell + direction * i;
-            if (IsSolidCell(spreadCell))
-            {
-                return;
-            }
-
-            AddWaterCell(spreadCell);
-
-            Vector2Int below = spreadCell + Vector2Int.down;
-            if (!IsSolidCell(below))
-            {
-                TraceDown(below, remainingDepth - 1);
-                return;
-            }
-        }
-    }
-
-    private void AddWaterCell(Vector2Int cell)
-    {
-        if (occupiedCells.Count >= maxCells || !occupiedCells.Add(cell))
-        {
-            return;
-        }
-
-        orderedCells.Add(cell);
-    }
-
-    private bool IsSolidCell(Vector2Int cell)
-    {
-        Vector2 worldCenter = CellToWorldPosition(cell);
-        Vector2 probeSize = Vector2.one * (CellSize * solidProbeScale);
-        Collider2D[] hits = Physics2D.OverlapBoxAll(worldCenter, probeSize, 0f, solidMask);
-        foreach (Collider2D hit in hits)
-        {
-            if (hit == null)
-            {
-                continue;
-            }
-
-            if (ignoreTriggerColliders && hit.isTrigger)
-            {
-                continue;
-            }
-
-            if (hit.GetComponentInParent<WaterFlowSource>() == this || hit.GetComponentInParent<WaterHazard>() != null)
-            {
-                continue;
-            }
-
-            if (ignorePlayerCharacters && hit.GetComponentInParent<PlayerCharacter>() != null)
-            {
-                continue;
-            }
-
-            return true;
-        }
-
-        return false;
     }
 
     private void SpawnBlobsIfNeeded()
     {
-        if (Time.time < nextSpawnTime || occupiedCells.Count == 0)
+        if (Time.time < nextSpawnTime)
         {
             return;
         }
@@ -345,20 +145,27 @@ public class WaterFlowSource : MonoBehaviour
     {
         EnsureGeneratedRoot();
 
-        Vector2Int spawnCell = GetSpawnCell();
-        Vector2 spawnPosition = CellToWorldPosition(spawnCell) + Random.insideUnitCircle * spawnJitter;
+        Vector2 spawnOffset = new Vector2(
+            Random.Range(-spawnWidth * 0.5f, spawnWidth * 0.5f),
+            Random.Range(-spawnJitter, spawnJitter));
+
         GameObject blobObject = new GameObject("WaterBlob");
         blobObject.transform.SetParent(generatedRoot, true);
-        blobObject.transform.position = spawnPosition;
+        blobObject.transform.position = (Vector2)transform.position + spawnOffset;
 
         SpriteRenderer renderer = blobObject.AddComponent<SpriteRenderer>();
         renderer.sprite = blobSprite != null ? blobSprite : GetDefaultBlobSprite();
-        renderer.sharedMaterial = blobMaterial != null ? blobMaterial : GetDefaultBlobMaterial();
         renderer.color = blobColor;
         renderer.sortingOrder = sortingOrder;
 
-        float randomScale = 1f + Random.Range(-blobSizeRandom, blobSizeRandom);
-        blobObject.transform.localScale = Vector3.one * (blobSize * randomScale);
+        Material material = blobMaterial != null ? blobMaterial : GetDefaultSpriteMaterial();
+        if (material != null)
+        {
+            renderer.sharedMaterial = material;
+        }
+
+        float randomSize = blobSize + Random.Range(-blobSizeRandom, blobSizeRandom);
+        blobObject.transform.localScale = Vector3.one * Mathf.Max(0.02f, randomSize);
 
         CircleCollider2D trigger = blobObject.AddComponent<CircleCollider2D>();
         trigger.isTrigger = true;
@@ -370,23 +177,97 @@ public class WaterFlowSource : MonoBehaviour
         }
 
         WaterFlowBlob blob = blobObject.AddComponent<WaterFlowBlob>();
-        int initialHorizontalDirection = Random.value < 0.5f ? -1 : 1;
-        blob.Initialize(this, spawnCell, initialHorizontalDirection);
+        blob.Initialize(this, RandomHorizontalDirection());
         activeBlobs.Add(blob);
     }
 
-    private Vector2Int GetSpawnCell()
+    internal int RandomHorizontalDirection()
     {
-        if (orderedCells.Count == 0)
+        return Random.value < 0.5f ? -1 : 1;
+    }
+
+    internal bool TryGetGroundBelow(Vector2 origin, float radius, Collider2D selfCollider, float extraDistance, out RaycastHit2D hit)
+    {
+        float distance = groundProbeDistance + Mathf.Max(0f, extraDistance);
+        return TryCastSolid(origin, radius, Vector2.down, distance, selfCollider, out hit);
+    }
+
+    internal bool TryCastSolid(
+        Vector2 origin,
+        float radius,
+        Vector2 direction,
+        float distance,
+        Collider2D selfCollider,
+        out RaycastHit2D bestHit)
+    {
+        bestHit = default;
+        if (distance <= 0f || direction.sqrMagnitude <= Mathf.Epsilon)
         {
-            return Vector2Int.zero;
+            return false;
         }
 
-        int width = Mathf.Max(1, sourceWidthInCells);
-        int searchCount = Mathf.Min(width, orderedCells.Count);
-        int index = spawnCursor % searchCount;
-        spawnCursor++;
-        return orderedCells[index];
+        RaycastHit2D[] hits = Physics2D.CircleCastAll(origin, radius, direction.normalized, distance, solidMask);
+        float bestDistance = float.PositiveInfinity;
+
+        foreach (RaycastHit2D hit in hits)
+        {
+            if (hit.collider == null || !IsSolidCollider(hit.collider, selfCollider))
+            {
+                continue;
+            }
+
+            if (hit.distance < bestDistance)
+            {
+                bestDistance = hit.distance;
+                bestHit = hit;
+            }
+        }
+
+        return bestHit.collider != null;
+    }
+
+    internal bool HasGroundAhead(Vector2 origin, float radius, int direction, Collider2D selfCollider)
+    {
+        Vector2 ahead = origin + Vector2.right * direction * (radius + ledgeProbeDistance);
+        return TryGetGroundBelow(ahead, radius * 0.85f, selfCollider, ledgeProbeDistance, out _);
+    }
+
+    internal bool CanMoveSide(Vector2 origin, float radius, int direction, Collider2D selfCollider)
+    {
+        if (direction == 0)
+        {
+            return false;
+        }
+
+        float distance = sideProbeDistance + radius * 0.35f;
+        return !TryCastSolid(origin, radius * 0.9f, Vector2.right * direction, distance, selfCollider, out _);
+    }
+
+    private bool IsSolidCollider(Collider2D hit, Collider2D selfCollider)
+    {
+        if (hit == null || hit == selfCollider)
+        {
+            return false;
+        }
+
+        if (ignoreTriggerColliders && hit.isTrigger)
+        {
+            return false;
+        }
+
+        if (hit.GetComponentInParent<WaterFlowSource>() == this ||
+            hit.GetComponentInParent<WaterFlowBlob>() != null ||
+            hit.GetComponentInParent<WaterHazard>() != null)
+        {
+            return false;
+        }
+
+        if (ignorePlayerCharacters && hit.GetComponentInParent<PlayerCharacter>() != null)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private void CleanupDeadBlobReferences()
@@ -446,37 +327,6 @@ public class WaterFlowSource : MonoBehaviour
         }
     }
 
-    private bool IsBuildDirty()
-    {
-        return lastBuildHash != GetBuildHash() || lastPosition != transform.position;
-    }
-
-    private void RememberBuildState()
-    {
-        lastBuildHash = GetBuildHash();
-        lastPosition = transform.position;
-    }
-
-    private int GetBuildHash()
-    {
-        unchecked
-        {
-            int hash = 17;
-            hash = hash * 31 + cellSize.GetHashCode();
-            hash = hash * 31 + sourceWidthInCells;
-            hash = hash * 31 + maxCells;
-            hash = hash * 31 + maxDepth;
-            hash = hash * 31 + maxFallCells;
-            hash = hash * 31 + maxSpreadCells;
-            hash = hash * 31 + spreadWhenBlocked.GetHashCode();
-            hash = hash * 31 + solidMask.value;
-            hash = hash * 31 + ignorePlayerCharacters.GetHashCode();
-            hash = hash * 31 + ignoreTriggerColliders.GetHashCode();
-            hash = hash * 31 + solidProbeScale.GetHashCode();
-            return hash;
-        }
-    }
-
     private void OnDrawGizmosSelected()
     {
         if (!showGizmos)
@@ -485,35 +335,28 @@ public class WaterFlowSource : MonoBehaviour
         }
 
         Gizmos.color = blobColor;
-        Gizmos.DrawWireCube(transform.position, Vector3.one * CellSize);
+        Vector3 size = new Vector3(Mathf.Max(0.05f, spawnWidth), 0.08f, 0.08f);
+        Gizmos.DrawWireCube(transform.position, size);
 
-        if (orderedCells.Count == 0)
-        {
-            RebuildFlow();
-        }
-
-        Gizmos.color = new Color(blobColor.r, blobColor.g, blobColor.b, 0.16f);
-        foreach (Vector2Int cell in orderedCells)
-        {
-            Gizmos.DrawWireCube(CellToWorldPosition(cell), Vector3.one * CellSize * 0.82f);
-        }
+        Gizmos.color = new Color(blobColor.r, blobColor.g, blobColor.b, 0.28f);
+        Gizmos.DrawLine(transform.position, transform.position + Vector3.down * (groundProbeDistance + ledgeProbeDistance));
     }
 
-    private static Material GetDefaultBlobMaterial()
+    private static Material GetDefaultSpriteMaterial()
     {
-        if (defaultBlobMaterial == null)
+        if (defaultSpriteMaterial == null)
         {
-            Shader shader = Shader.Find(BlobMaterialShader);
+            Shader shader = Shader.Find(SpriteFallbackShader);
             if (shader == null)
             {
-                shader = Shader.Find(SpriteFallbackShader);
+                return null;
             }
 
-            defaultBlobMaterial = new Material(shader);
-            defaultBlobMaterial.name = "WaterBlob_DefaultMaterial";
+            defaultSpriteMaterial = new Material(shader);
+            defaultSpriteMaterial.name = "WaterBlob_SpriteDefaultMaterial";
         }
 
-        return defaultBlobMaterial;
+        return defaultSpriteMaterial;
     }
 
     private static Sprite GetDefaultBlobSprite()
@@ -538,9 +381,12 @@ public class WaterFlowSource : MonoBehaviour
             for (int x = 0; x < size; x++)
             {
                 float distance = Vector2.Distance(new Vector2(x, y), center);
-                float body = 1f - Mathf.SmoothStep(radius * 0.72f, radius, distance);
-                float highlight = 1f - Mathf.SmoothStep(0f, radius * 0.5f, distance);
-                Color color = Color.Lerp(new Color(0.15f, 0.78f, 0.95f, 0.7f), new Color(0.9f, 1f, 1f, 0.95f), highlight * 0.35f);
+                float body = 1f - Mathf.SmoothStep(radius * 0.66f, radius, distance);
+                float highlight = 1f - Mathf.SmoothStep(0f, radius * 0.52f, distance);
+                Color color = Color.Lerp(
+                    new Color(0.16f, 0.78f, 0.95f, 0.68f),
+                    new Color(0.92f, 1f, 1f, 0.94f),
+                    highlight * 0.34f);
                 color.a *= body;
                 texture.SetPixel(x, y, color);
             }
@@ -564,28 +410,29 @@ public class WaterFlowBlob : MonoBehaviour
 {
     private WaterFlowSource source;
     private SpriteRenderer spriteRenderer;
-    private Vector2Int currentCell;
-    private Vector2 targetPosition;
+    private CircleCollider2D circleCollider;
+    private Vector2 velocity;
     private Vector3 baseScale;
     private int horizontalDirection;
     private float age;
     private float phase;
     private bool retiring;
 
-    public void Initialize(WaterFlowSource owner, Vector2Int startCell, int initialHorizontalDirection)
+    public void Initialize(WaterFlowSource owner, int initialHorizontalDirection)
     {
         source = owner;
-        currentCell = startCell;
         horizontalDirection = initialHorizontalDirection == 0 ? 1 : (int)Mathf.Sign(initialHorizontalDirection);
-        targetPosition = source.CellToWorldPosition(currentCell);
+        velocity = new Vector2(horizontalDirection * owner.FallDriftSpeed, -owner.EdgeDropVelocity);
         phase = Random.Range(0f, Mathf.PI * 2f);
         spriteRenderer = GetComponent<SpriteRenderer>();
+        circleCollider = GetComponent<CircleCollider2D>();
         baseScale = transform.localScale;
     }
 
     private void Awake()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
+        circleCollider = GetComponent<CircleCollider2D>();
         baseScale = transform.localScale;
     }
 
@@ -600,49 +447,138 @@ public class WaterFlowBlob : MonoBehaviour
         age += Time.deltaTime;
         if (age >= source.BlobLifetime)
         {
+            StartRetiring();
+        }
+
+        if (retiring)
+        {
             FadeAndDestroy();
             return;
         }
 
-        MoveAlongFlow();
+        SimulateMovement(Time.deltaTime);
         AnimateBlob();
     }
 
-    private void MoveAlongFlow()
+    private void SimulateMovement(float deltaTime)
     {
-        float speed = GetCurrentSpeed();
-        transform.position = Vector2.MoveTowards(transform.position, targetPosition, speed * Time.deltaTime);
+        Vector2 position = transform.position;
+        float radius = GetWorldRadius();
+        float fallDistance = velocity.y < 0f ? -velocity.y * deltaTime : 0f;
 
-        if (Vector2.Distance(transform.position, targetPosition) > 0.015f)
+        if (velocity.y <= 0.05f && source.TryGetGroundBelow(position, radius, circleCollider, fallDistance, out RaycastHit2D groundHit))
         {
-            return;
+            FlowOnSurface(ref position, radius, deltaTime, groundHit);
+        }
+        else
+        {
+            Fall(ref position, radius, deltaTime);
         }
 
-        if (!source.IsFlowCell(currentCell) || !source.TryGetNextBlobCell(currentCell, ref horizontalDirection, out Vector2Int nextCell))
-        {
-            retiring = true;
-            FadeAndDestroy();
-            return;
-        }
-
-        currentCell = nextCell;
-        targetPosition = source.CellToWorldPosition(currentCell);
+        transform.position = position;
     }
 
-    private float GetCurrentSpeed()
+    private void FlowOnSurface(ref Vector2 position, float radius, float deltaTime, RaycastHit2D groundHit)
     {
-        if (retiring)
+        position = groundHit.centroid + Vector2.up * source.SurfaceClearance;
+        velocity.y = 0f;
+
+        int direction = ChooseFlowDirection(position, radius);
+        if (direction == 0)
         {
-            return source.SettleSpeed;
+            velocity.x = Mathf.MoveTowards(velocity.x, 0f, source.HorizontalAcceleration * deltaTime);
+            return;
         }
 
-        Vector2 direction = targetPosition - (Vector2)transform.position;
-        if (Mathf.Abs(direction.y) > Mathf.Abs(direction.x))
+        horizontalDirection = direction;
+        velocity.x = Mathf.MoveTowards(
+            velocity.x,
+            direction * source.SpreadSpeed,
+            source.HorizontalAcceleration * deltaTime);
+
+        Vector2 nextPosition = position + Vector2.right * velocity.x * deltaTime;
+        if (source.TryCastSolid(position, radius, Vector2.right * direction, Mathf.Abs(velocity.x) * deltaTime + 0.01f, circleCollider, out _))
         {
-            return source.FallSpeed;
+            horizontalDirection = -direction;
+            velocity.x = 0f;
+            return;
         }
 
-        return source.SpreadSpeed;
+        if (source.TryGetGroundBelow(nextPosition, radius, circleCollider, source.LedgeProbeDistance, out RaycastHit2D nextGround))
+        {
+            position = nextGround.centroid + Vector2.up * source.SurfaceClearance;
+            return;
+        }
+
+        position = nextPosition;
+        velocity.y = -source.EdgeDropVelocity;
+    }
+
+    private int ChooseFlowDirection(Vector2 position, float radius)
+    {
+        int preferred = horizontalDirection == 0 ? source.RandomHorizontalDirection() : horizontalDirection;
+        bool canPreferred = source.CanMoveSide(position, radius, preferred, circleCollider);
+        bool canOther = source.CanMoveSide(position, radius, -preferred, circleCollider);
+
+        if (canPreferred && canOther && !source.HasGroundAhead(position, radius, preferred, circleCollider))
+        {
+            return preferred;
+        }
+
+        if (canPreferred)
+        {
+            return preferred;
+        }
+
+        if (canOther)
+        {
+            return -preferred;
+        }
+
+        return 0;
+    }
+
+    private void Fall(ref Vector2 position, float radius, float deltaTime)
+    {
+        velocity.y = Mathf.Max(velocity.y - source.Gravity * deltaTime, -source.MaxFallSpeed);
+        velocity.x = Mathf.MoveTowards(
+            velocity.x,
+            horizontalDirection * source.FallDriftSpeed,
+            source.HorizontalAcceleration * deltaTime);
+
+        Vector2 horizontalDelta = new Vector2(velocity.x * deltaTime, 0f);
+        if (Mathf.Abs(horizontalDelta.x) > 0f &&
+            source.TryCastSolid(position, radius, Vector2.right * Mathf.Sign(horizontalDelta.x), Mathf.Abs(horizontalDelta.x), circleCollider, out _))
+        {
+            horizontalDirection *= -1;
+            velocity.x = 0f;
+            horizontalDelta = Vector2.zero;
+        }
+
+        position += horizontalDelta;
+
+        float downwardDistance = Mathf.Max(0f, -velocity.y * deltaTime);
+        if (downwardDistance > 0f &&
+            source.TryCastSolid(position, radius, Vector2.down, downwardDistance + source.GroundProbeDistance, circleCollider, out RaycastHit2D groundHit))
+        {
+            position = groundHit.centroid + Vector2.up * source.SurfaceClearance;
+            velocity.y = 0f;
+            horizontalDirection = source.RandomHorizontalDirection();
+            return;
+        }
+
+        position += Vector2.up * velocity.y * deltaTime;
+    }
+
+    private float GetWorldRadius()
+    {
+        if (circleCollider == null)
+        {
+            return Mathf.Max(transform.lossyScale.x, transform.lossyScale.y) * 0.5f;
+        }
+
+        float scale = Mathf.Max(transform.lossyScale.x, transform.lossyScale.y);
+        return circleCollider.radius * scale;
     }
 
     private void AnimateBlob()
@@ -654,12 +590,21 @@ public class WaterFlowBlob : MonoBehaviour
             baseScale.z);
     }
 
+    private void StartRetiring()
+    {
+        retiring = true;
+        if (circleCollider != null)
+        {
+            circleCollider.enabled = false;
+        }
+    }
+
     private void FadeAndDestroy()
     {
         if (spriteRenderer != null)
         {
             Color color = spriteRenderer.color;
-            color.a = Mathf.MoveTowards(color.a, 0f, Time.deltaTime * 3f);
+            color.a = Mathf.MoveTowards(color.a, 0f, Time.deltaTime * 3.5f);
             spriteRenderer.color = color;
             if (color.a > 0.02f)
             {

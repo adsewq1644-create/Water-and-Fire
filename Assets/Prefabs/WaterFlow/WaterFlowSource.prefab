@@ -44,39 +44,36 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a70fa26eb33e28741a55d07c886f68dc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  cellSize: 0.45
-  sourceWidthInCells: 2
-  maxCells: 240
-  maxDepth: 8
-  maxFallCells: 32
-  maxSpreadCells: 10
-  spreadWhenBlocked: 1
+  spawnBlobsInPlayMode: 1
+  spawnInterval: 0.12
+  blobsPerSpawn: 1
+  maxActiveBlobs: 55
+  spawnWidth: 0.35
+  spawnJitter: 0.04
+  blobLifetime: 4.5
   solidMask:
     serializedVersion: 2
     m_Bits: 4294967295
   ignorePlayerCharacters: 1
   ignoreTriggerColliders: 1
-  solidProbeScale: 0.86
-  rebuildInPlayMode: 1
-  rebuildInEditMode: 1
-  rebuildInterval: 0.12
-  spawnBlobsInPlayMode: 1
-  spawnInterval: 0.08
-  blobsPerSpawn: 2
-  maxActiveBlobs: 120
-  spawnJitter: 0.08
-  blobLifetime: 6
-  fallSpeed: 3.7
-  spreadSpeed: 2.1
-  settleSpeed: 1.2
-  visualWobbleAmount: 0.055
-  visualWobbleSpeed: 5.5
+  groundProbeDistance: 0.1
+  sideProbeDistance: 0.07
+  ledgeProbeDistance: 0.22
+  surfaceClearance: 0.01
+  gravity: 12
+  maxFallSpeed: 5.5
+  spreadSpeed: 1.45
+  fallDriftSpeed: 0.18
+  horizontalAcceleration: 10
+  edgeDropVelocity: 1.2
   blobSprite: {fileID: 0}
   blobMaterial: {fileID: 0}
   blobColor: {r: 0.36, g: 0.92, b: 1, a: 0.76}
-  blobSize: 0.62
-  blobSizeRandom: 0.16
+  blobSize: 0.28
+  blobSizeRandom: 0.06
+  visualWobbleAmount: 0.045
+  visualWobbleSpeed: 5.5
   sortingOrder: 20
   blobIsHazard: 1
-  hazardRadiusScale: 0.42
+  hazardRadiusScale: 0.46
   showGizmos: 1
