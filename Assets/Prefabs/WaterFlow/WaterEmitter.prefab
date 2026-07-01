@@ -66,14 +66,23 @@ MonoBehaviour:
   fallDriftSpeed: 0.18
   horizontalAcceleration: 10
   edgeDropVelocity: 1.2
-  blobSprite: {fileID: 0}
   blobMaterial: {fileID: 0}
-  blobColor: {r: 0.36, g: 0.92, b: 1, a: 0.76}
+  blobColor: {r: 0.36, g: 0.92, b: 1, a: 0.9}
+  blobEdgeColor: {r: 0.75, g: 1, b: 1, a: 0.32}
   blobSize: 0.28
   blobSizeRandom: 0.06
   visualWobbleAmount: 0.045
   visualWobbleSpeed: 5.5
-  sortingOrder: 20
+  fallingStretch: 0.32
+  surfaceStretch: 0.24
+  useMetaballVisual: 1
+  metaballCellSize: 0.07
+  metaballInfluenceScale: 1.9
+  metaballCoreThreshold: 0.34
+  metaballEdgeThreshold: 0.16
+  metaballMaxCells: 14000
+  metaballUpdateInterval: 0.02
+  sortingOrder: 80
   blobIsHazard: 1
   hazardRadiusScale: 0.46
   showGizmos: 1
