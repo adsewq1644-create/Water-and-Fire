@@ -6,6 +6,11 @@ public class PlayerCharacter : MonoBehaviour
     private const string AimLineShaderName = "WaterAndFire/AimPreviewUnlit";
     private const int AimLineSortingOffset = -1;
     private static readonly int MaxBrightnessId = Shader.PropertyToID("_MaxBrightness");
+    private static readonly Color GroundCastGizmoColor = new Color(1f, 0.85f, 0.05f, 0.85f);
+    private static readonly Color ReviveRangeGizmoColor = new Color(0.2f, 1f, 0.25f, 0.8f);
+    private static readonly Color ProjectileSpawnGizmoColor = new Color(0.25f, 0.55f, 1f, 0.85f);
+    private static readonly Color ProjectileVisualGizmoColor = new Color(0.35f, 0.85f, 1f, 0.7f);
+    private static readonly Color ProjectileColliderGizmoColor = new Color(1f, 0.85f, 0.1f, 0.9f);
 
     [Header("Identity")]
     [SerializeField] private string playerId = "Player";
@@ -21,12 +26,11 @@ public class PlayerCharacter : MonoBehaviour
 
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 7f;
+    [SerializeField, Range(0f, 1f)] private float airControlMultiplier = 0.75f;
     [SerializeField] private float jumpVelocity = 13f;
     [SerializeField] private float jumpCutMultiplier = 0.45f;
     [SerializeField] private float coyoteTime = 0.15f;
     [SerializeField] private LayerMask groundMask = ~0;
-    [SerializeField] private Vector2 groundCheckSize = new Vector2(0.7f, 0.12f);
-    [SerializeField] private float groundCheckOffset = 0.55f;
     [SerializeField] private float groundCastDistance = 0.08f;
     [SerializeField] private float sideCastDistance = 0.08f;
     [SerializeField] private float minimumGroundNormalY = 0.65f;
@@ -38,6 +42,10 @@ public class PlayerCharacter : MonoBehaviour
     [SerializeField] private float projectileLifetime = 6f;
     [SerializeField] private float dragForceScale = 0.08f;
     [SerializeField] private float projectileSpawnOffset = 0.55f;
+    [SerializeField] private float projectileVisualScale = 1f;
+    [SerializeField] private float projectileColliderRadius = 0.16f;
+    [SerializeField] private float projectileSpeedMultiplier = 1f;
+    [SerializeField] private float projectileMaxUpwardVelocity = 0f;
     [SerializeField] private int trajectoryPoints = 18;
     [SerializeField] private float trajectoryStep = 0.08f;
     [SerializeField] private float pullLineWidth = 0.055f;
@@ -171,13 +179,6 @@ public class PlayerCharacter : MonoBehaviour
 
     private void SetupAimVisuals()
     {
-        LineRenderer legacyLine = GetComponent<LineRenderer>();
-        if (legacyLine != null)
-        {
-            legacyLine.enabled = false;
-            Destroy(legacyLine);
-        }
-
         aimVisualLayer = LayerMask.NameToLayer("Default");
         Shader lineShader = Shader.Find(AimLineShaderName);
         if (lineShader == null)
@@ -348,7 +349,8 @@ public class PlayerCharacter : MonoBehaviour
             move = 0f;
         }
 
-        body.linearVelocity = new Vector2(move * moveSpeed, body.linearVelocity.y);
+        float controlMultiplier = grounded ? 1f : airControlMultiplier;
+        body.linearVelocity = new Vector2(move * moveSpeed * controlMultiplier, body.linearVelocity.y);
     }
 
     private bool IsSideBlocked(float move)
@@ -478,29 +480,33 @@ public class PlayerCharacter : MonoBehaviour
             return;
         }
 
-        float force = Mathf.Clamp(dragVector.magnitude * dragForceScale, projectileMinForce, projectileMaxForce);
-        Vector2 direction = dragVector.normalized;
-        FireProjectile(direction * force);
+        Vector2 previewVelocity = GetPreviewProjectileVelocity(dragVector);
+        FireProjectile(previewVelocity);
         nextFireTime = Time.time + projectileCooldown;
     }
 
-    private void FireProjectile(Vector2 velocity)
+    private void FireProjectile(Vector2 previewVelocity)
     {
-        Vector2 direction = velocity.sqrMagnitude > 0f ? velocity.normalized : Vector2.right;
+        Vector2 direction = previewVelocity.sqrMagnitude > 0f ? previewVelocity.normalized : Vector2.right;
         var projectileObject = new GameObject(playerId + "_" + element + "Projectile");
         projectileObject.layer = gameObject.layer;
         projectileObject.transform.position = (Vector2)transform.position + direction * projectileSpawnOffset;
 
-        var renderer = projectileObject.AddComponent<SpriteRenderer>();
+        var visualObject = new GameObject("Visual");
+        visualObject.transform.SetParent(projectileObject.transform, false);
+        visualObject.transform.localScale = Vector3.one * Mathf.Max(0.01f, projectileVisualScale);
+
+        var renderer = visualObject.AddComponent<SpriteRenderer>();
         renderer.sprite = GamePrototypeManager.Instance != null ? GamePrototypeManager.Instance.ProjectileSprite : null;
         renderer.color = element == ElementType.Water ? new Color(0.2f, 0.65f, 1f, 1f) : new Color(1f, 0.35f, 0.1f, 1f);
         renderer.sortingOrder = 5;
 
         projectileObject.AddComponent<Rigidbody2D>();
         var projectileCollider = projectileObject.AddComponent<CircleCollider2D>();
-        projectileCollider.radius = 0.16f;
+        projectileCollider.radius = Mathf.Max(0.01f, projectileColliderRadius);
         var projectile = projectileObject.AddComponent<ElementProjectile>();
-        projectile.Initialize(element, this, velocity, projectileLifetime);
+        float speedMultiplier = Mathf.Max(0.01f, projectileSpeedMultiplier);
+        projectile.Initialize(element, this, previewVelocity * speedMultiplier, projectileLifetime, speedMultiplier * speedMultiplier);
     }
 
     private void UpdateTrajectoryPreview()
@@ -513,7 +519,7 @@ public class PlayerCharacter : MonoBehaviour
         }
 
         float force = Mathf.Clamp(dragVector.magnitude * dragForceScale, projectileMinForce, projectileMaxForce);
-        Vector2 initialVelocity = dragVector.normalized * force;
+        Vector2 initialVelocity = GetPreviewProjectileVelocity(dragVector);
         Vector2 start = (Vector2)transform.position + initialVelocity.normalized * projectileSpawnOffset;
         Vector2 gravity = Physics2D.gravity;
 
@@ -525,6 +531,18 @@ public class PlayerCharacter : MonoBehaviour
             Vector2 point = start + initialVelocity * time + 0.5f * gravity * time * time;
             trajectoryLine.SetPosition(i, point);
         }
+    }
+
+    private Vector2 GetPreviewProjectileVelocity(Vector2 dragVector)
+    {
+        float force = Mathf.Clamp(dragVector.magnitude * dragForceScale, projectileMinForce, projectileMaxForce);
+        Vector2 velocity = dragVector.normalized * force;
+        if (projectileMaxUpwardVelocity > 0f && velocity.y > projectileMaxUpwardVelocity)
+        {
+            velocity.y = projectileMaxUpwardVelocity;
+        }
+
+        return velocity;
     }
 
     private void UpdatePullLine(Vector2 fireDirection, float force)
@@ -701,12 +719,58 @@ public class PlayerCharacter : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.yellow;
-        Vector2 center = (Vector2)transform.position + Vector2.down * groundCheckOffset;
-        Gizmos.DrawWireCube(center, groundCheckSize);
+        DrawGroundCastGizmo();
+        DrawReviveRangeGizmo();
+        DrawProjectileGizmos();
+    }
 
-        Gizmos.color = Color.green;
-        Gizmos.DrawWireSphere(transform.position, reviveRange);
+    private void DrawGroundCastGizmo()
+    {
+        Collider2D colliderToDraw = bodyCollider != null ? bodyCollider : GetComponent<Collider2D>();
+        if (colliderToDraw == null)
+        {
+            return;
+        }
+
+        Gizmos.color = GroundCastGizmoColor;
+        Vector3 castOffset = Vector3.down * Mathf.Max(0f, groundCastDistance);
+        if (colliderToDraw is BoxCollider2D box)
+        {
+            Vector2 worldCenter = (Vector2)transform.position + box.offset + (Vector2)castOffset;
+            Vector2 worldSize = Vector2.Scale(box.size, transform.lossyScale);
+            Gizmos.DrawWireCube(worldCenter, worldSize);
+            return;
+        }
+
+        if (colliderToDraw is CircleCollider2D circle)
+        {
+            Vector2 worldCenter = (Vector2)transform.position + circle.offset + (Vector2)castOffset;
+            float worldRadius = circle.radius * Mathf.Max(Mathf.Abs(transform.lossyScale.x), Mathf.Abs(transform.lossyScale.y));
+            Gizmos.DrawWireSphere(worldCenter, worldRadius);
+        }
+    }
+
+    private void DrawReviveRangeGizmo()
+    {
+        Gizmos.color = ReviveRangeGizmoColor;
+        Gizmos.DrawWireSphere(transform.position, Mathf.Max(0f, reviveRange));
+    }
+
+    private void DrawProjectileGizmos()
+    {
+        float spawnOffset = Mathf.Max(0f, projectileSpawnOffset);
+        Vector3 sampleSpawn = transform.position + Vector3.right * spawnOffset;
+        float visualRadius = Mathf.Max(0.01f, projectileVisualScale) * 0.5f;
+        float colliderRadius = Mathf.Max(0.01f, projectileColliderRadius);
+
+        Gizmos.color = ProjectileSpawnGizmoColor;
+        Gizmos.DrawWireSphere(transform.position, spawnOffset);
+
+        Gizmos.color = ProjectileVisualGizmoColor;
+        Gizmos.DrawWireSphere(sampleSpawn, visualRadius);
+
+        Gizmos.color = ProjectileColliderGizmoColor;
+        Gizmos.DrawWireSphere(sampleSpawn, colliderRadius);
     }
 
     private void OnDestroy()

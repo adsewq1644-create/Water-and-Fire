@@ -12,7 +12,7 @@ public class ElementProjectile : MonoBehaviour
     public ElementType Element => element;
     public PlayerCharacter Owner => owner;
 
-    public void Initialize(ElementType projectileElement, PlayerCharacter projectileOwner, Vector2 velocity, float projectileLifetime)
+    public void Initialize(ElementType projectileElement, PlayerCharacter projectileOwner, Vector2 velocity, float projectileLifetime, float gravityScale = 1f)
     {
         element = projectileElement;
         owner = projectileOwner;
@@ -21,7 +21,7 @@ public class ElementProjectile : MonoBehaviour
 
         var body = GetComponent<Rigidbody2D>();
         body.bodyType = RigidbodyType2D.Dynamic;
-        body.gravityScale = 1f;
+        body.gravityScale = Mathf.Max(0f, gravityScale);
         body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         body.linearVelocity = velocity;
 

@@ -57,6 +57,10 @@ public class GrowablePlant : MonoBehaviour
     private Coroutine transitionRoutine;
     private float nextReactionTime;
 
+#if UNITY_EDITOR
+    private bool editorApplyQueued;
+#endif
+
     public PlantGrowthStage CurrentStage => currentStage;
     public PlantCollisionRole CurrentCollisionRole => GetStageSettings(currentStage).collisionRole;
 
@@ -121,8 +125,40 @@ public class GrowablePlant : MonoBehaviour
         if (!Application.isPlaying)
         {
             currentStage = ClampStage(initialStage);
-            ApplyStageImmediate(currentStage);
+            QueueEditorStageApply();
         }
+    }
+
+    private void QueueEditorStageApply()
+    {
+#if UNITY_EDITOR
+        if (editorApplyQueued)
+        {
+            return;
+        }
+
+        editorApplyQueued = true;
+        UnityEditor.EditorApplication.delayCall += () =>
+        {
+            if (this == null)
+            {
+                return;
+            }
+
+            editorApplyQueued = false;
+            if (Application.isPlaying)
+            {
+                return;
+            }
+
+            CacheReferences();
+            EnsureStageSettings();
+            currentStage = ClampStage(initialStage);
+            ApplyStageImmediate(currentStage);
+        };
+#else
+        ApplyStageImmediate(currentStage);
+#endif
     }
 
     private bool TryChangeStage(int direction, ElementType sourceElement)

@@ -134,7 +134,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      water_wobble_check_0: -2429715812070808911
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

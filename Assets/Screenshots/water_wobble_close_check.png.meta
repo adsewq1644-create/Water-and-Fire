@@ -234,7 +234,12 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      water_wobble_close_check_0: 6235203113245813054
+      water_wobble_close_check_1: -5928564006504172379
+      water_wobble_close_check_2: 8592828739528772015
+      water_wobble_close_check_3: -4332052787176864085
+      water_wobble_close_check_4: -2667060974732551563
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

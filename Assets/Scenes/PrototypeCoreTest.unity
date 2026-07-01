@@ -309,7 +309,6 @@ GameObject:
   - component: {fileID: 275496473}
   - component: {fileID: 275496475}
   - component: {fileID: 275496474}
-  - component: {fileID: 275496476}
   m_Layer: 0
   m_Name: Player2_Fire
   m_TagString: Untagged
@@ -344,8 +343,6 @@ MonoBehaviour:
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
-  groundCheckSize: {x: 0.7, y: 0.12}
-  groundCheckOffset: 0.55
   groundCastDistance: 0.08
   sideCastDistance: 0.08
   minimumGroundNormalY: 0.65
@@ -588,28 +585,6 @@ MonoBehaviour:
   noiseFrequency: 0.95
   layoutResponse: 18
   presetVersion: 2
---- !u!114 &275496476
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 275496467}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e52671fd22184615bdca51527c067327, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  idleFrame: {fileID: 21300000, guid: c53d9c5dcfb557f48a3174979b30ad45, type: 3}
-  walkFrames:
-  - {fileID: 21300000, guid: c53d9c5dcfb557f48a3174979b30ad45, type: 3}
-  - {fileID: 21300000, guid: 14ff40d0903c1ce49a6d21f15b7fbf4d, type: 3}
-  - {fileID: 21300000, guid: 04dac713486c75241a37f8fe944e5934, type: 3}
-  - {fileID: 21300000, guid: 7e57e38b756658f4083ff820b52dd559, type: 3}
-  - {fileID: 21300000, guid: cb45f1c511b60c14c8096bf3bd319435, type: 3}
-  - {fileID: 21300000, guid: bc7a69467361a5a4890c56cb19bdac73, type: 3}
-  framesPerSecond: 10
-  moveThreshold: 0.1
 --- !u!1 &449580329
 GameObject:
   m_ObjectHideFlags: 0
@@ -1718,8 +1693,6 @@ MonoBehaviour:
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
-  groundCheckSize: {x: 0.7, y: 0.12}
-  groundCheckOffset: 0.55
   groundCastDistance: 0.08
   sideCastDistance: 0.08
   minimumGroundNormalY: 0.65
