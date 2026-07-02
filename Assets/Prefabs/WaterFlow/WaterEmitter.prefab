@@ -47,10 +47,11 @@ MonoBehaviour:
   spawnBlobsInPlayMode: 1
   spawnInterval: 0.12
   blobsPerSpawn: 1
-  maxActiveBlobs: 55
+  maxActiveBlobs: 90
   spawnWidth: 0.35
   spawnJitter: 0.04
-  blobLifetime: 4.5
+  blobLifetime: 8
+  surfaceLifetimeMultiplier: 1
   solidMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -66,6 +67,8 @@ MonoBehaviour:
   fallDriftSpeed: 0.18
   horizontalAcceleration: 10
   edgeDropVelocity: 1.2
+  slopeFlowMode: 1
+  downhillNormalThreshold: 0.03
   blobMaterial: {fileID: 0}
   blobColor: {r: 0.36, g: 0.92, b: 1, a: 0.9}
   blobEdgeColor: {r: 0.75, g: 1, b: 1, a: 0.32}
