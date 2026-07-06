@@ -40,6 +40,17 @@ public class DarkZoneManager : MonoBehaviour
 
     public static bool IsLocalViewDark => instance != null && instance.activeZones.Count > 0;
 
+    public static bool TryGetExisting(out DarkZoneManager manager)
+    {
+        if (instance == null)
+        {
+            instance = FindFirstObjectByType<DarkZoneManager>();
+        }
+
+        manager = instance;
+        return manager != null;
+    }
+
     private void Awake()
     {
         if (instance != null && instance != this)

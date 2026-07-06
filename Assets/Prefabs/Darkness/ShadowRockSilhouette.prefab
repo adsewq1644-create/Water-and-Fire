@@ -46,17 +46,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   silhouetteRenderer: {fileID: 500012}
-  fireSilhouetteAlpha: 0.28
+  fireSilhouetteAlpha: 0.75
   useLightBasedVisibility: 1
-  hiddenAlpha: 0.025
-  waterSilhouetteAlpha: 0.14
-  waterVisibilityRadius: 2.7
-  fireVisibilityRadius: 7
+  hiddenAlpha: 0
+  waterSilhouetteAlpha: 0.42
+  waterVisibilityRadius: 0
+  fireVisibilityRadius: 0
   fadeSpeed: 5
   debugGizmos: 1
   usePartialReveal: 1
   partialRevealMaterial: {fileID: 0}
-  partialRevealSoftness: 0.85
+  partialRevealSoftness: 0.45
   maxRevealSources: 8
 --- !u!1 &500010
 GameObject:
@@ -135,7 +135,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_Sprite: {fileID: 3992065188525367219, guid: 48de9cd8461b71243afc22baeef9d4b7, type: 3}
-  m_Color: {r: 0.12, g: 0.09, b: 0.18, a: 0.28}
+  m_Color: {r: 0.46, g: 0.18, b: 0.95, a: 0}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0

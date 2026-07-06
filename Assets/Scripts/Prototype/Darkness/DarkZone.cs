@@ -32,9 +32,9 @@ public class DarkZone : MonoBehaviour
     private void OnDisable()
     {
         playersInside.Clear();
-        if (DarkZoneManager.Instance != null)
+        if (DarkZoneManager.TryGetExisting(out DarkZoneManager manager))
         {
-            DarkZoneManager.Instance.SetZoneActive(this, false);
+            manager.SetZoneActive(this, false);
         }
     }
 
@@ -62,7 +62,10 @@ public class DarkZone : MonoBehaviour
 
         if (playersInside.Remove(player) && playersInside.Count == 0)
         {
-            DarkZoneManager.Instance.SetZoneActive(this, false);
+            if (DarkZoneManager.TryGetExisting(out DarkZoneManager manager))
+            {
+                manager.SetZoneActive(this, false);
+            }
         }
     }
 
