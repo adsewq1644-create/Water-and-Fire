@@ -144,6 +144,11 @@ public class PlayerCharacter : MonoBehaviour
 
     public void ApplyBouncePlatformVelocity(Vector2 velocity)
     {
+        ApplyDiveBounce(velocity);
+    }
+
+    public void ApplyDiveBounce(Vector2 velocity)
+    {
         isChargingJump = false;
         jumpChargeTimer = 0f;
         isDiving = false;

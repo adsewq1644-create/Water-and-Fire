@@ -76,7 +76,7 @@ public class BouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
 
             if (player != null)
             {
-                player.ApplyBouncePlatformVelocity(velocity);
+                player.ApplyDiveBounce(velocity);
             }
             else
             {
