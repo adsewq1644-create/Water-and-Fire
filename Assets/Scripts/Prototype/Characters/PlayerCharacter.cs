@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))]
@@ -11,6 +13,7 @@ public class PlayerCharacter : MonoBehaviour
     private static readonly Color ProjectileSpawnGizmoColor = new Color(0.25f, 0.55f, 1f, 0.85f);
     private static readonly Color ProjectileVisualGizmoColor = new Color(0.35f, 0.85f, 1f, 0.7f);
     private static readonly Color ProjectileColliderGizmoColor = new Color(1f, 0.85f, 0.1f, 0.9f);
+    private static readonly Color ShockwaveGizmoColor = new Color(1f, 0.92f, 0.35f, 0.5f);
 
     [Header("Identity")]
     [SerializeField] private string playerId = "Player";
@@ -26,14 +29,31 @@ public class PlayerCharacter : MonoBehaviour
 
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 7f;
-    [SerializeField, Range(0f, 1f)] private float airControlMultiplier = 0.75f;
-    [SerializeField] private float jumpVelocity = 13f;
-    [SerializeField] private float jumpCutMultiplier = 0.45f;
+    [SerializeField, Range(0f, 1f)] private float airControlMultiplier = 0.18f;
+    [SerializeField] private float groundAcceleration = 45f;
+    [SerializeField] private float groundDeceleration = 55f;
+    [SerializeField] private float airAcceleration = 12f;
     [SerializeField] private float coyoteTime = 0.15f;
     [SerializeField] private LayerMask groundMask = ~0;
     [SerializeField] private float groundCastDistance = 0.08f;
     [SerializeField] private float sideCastDistance = 0.08f;
     [SerializeField] private float minimumGroundNormalY = 0.65f;
+
+    [Header("Charge Jump")]
+    [SerializeField] private float maxChargeTime = 0.7f;
+    [SerializeField] private float minJumpPower = 7f;
+    [SerializeField] private float maxJumpPower = 14f;
+    [SerializeField] private float horizontalJumpPower = 5f;
+    [SerializeField, Range(0f, 1f)] private float minHorizontalChargeMultiplier = 0.45f;
+    [SerializeField, Range(0f, 1f)] private float chargeMoveSpeedMultiplier = 0.3f;
+
+    [Header("Dive")]
+    [SerializeField] private float diveSpeed = 18f;
+    [SerializeField] private float diveLandingStun = 0.12f;
+    [SerializeField] private float shockwaveRadius = 3f;
+    [SerializeField] private float shockwaveDuration = 0.25f;
+    [SerializeField] private bool shockwaveDelayByDistance = true;
+    [SerializeField] private LayerMask shockwaveMask = ~0;
 
     [Header("Combat")]
     [SerializeField] private float projectileCooldown = 2f;
@@ -72,6 +92,13 @@ public class PlayerCharacter : MonoBehaviour
     private float coyoteTimer;
     private bool grounded;
     private bool jumpConsumedUntilLanding;
+    private bool isChargingJump;
+    private float jumpChargeTimer;
+    private bool jumpInputReleasedAfterLaunch = true;
+    private bool diveUsed;
+    private bool isDiving;
+    private float diveLandingStunTimer;
+    private RaycastHit2D lastGroundHit;
     private float nextFireTime;
     private bool dragging;
     private Vector2 dragStartScreen;
@@ -92,6 +119,10 @@ public class PlayerCharacter : MonoBehaviour
     public Collider2D BodyCollider => bodyCollider;
     public bool IsAliveLike => LifeState == PlayerLifeState.Alive || LifeState == PlayerLifeState.ReviveCaster;
     public bool IsDeadLike => LifeState == PlayerLifeState.Dead || LifeState == PlayerLifeState.ReviveTarget;
+    public bool IsChargingJump => isChargingJump;
+    public bool IsDiving => isDiving;
+    public float JumpChargeNormalized => maxChargeTime <= 0f ? 1f : Mathf.Clamp01(jumpChargeTimer / maxChargeTime);
+    public int JumpChargeStep => Mathf.Clamp(Mathf.FloorToInt(JumpChargeNormalized * 3f) + 1, 1, 3);
 
     public void Configure(string id, ElementType characterElement, KeyCode left, KeyCode right, KeyCode jump, KeyCode alternateJump, KeyCode interact, int mouseButton)
     {
@@ -135,6 +166,7 @@ public class PlayerCharacter : MonoBehaviour
 
         LifeState = PlayerLifeState.Dead;
         dragging = false;
+        ResetJumpActionState();
         body.linearVelocity = Vector2.zero;
         body.bodyType = RigidbodyType2D.Kinematic;
         body.gravityScale = 0f;
@@ -148,6 +180,7 @@ public class PlayerCharacter : MonoBehaviour
     {
         LifeState = PlayerLifeState.Alive;
         ReviveProgress = 0f;
+        ResetJumpActionState();
         body.bodyType = originalBodyType;
         body.gravityScale = originalGravityScale;
         bodyCollider.isTrigger = originalTrigger;
@@ -300,9 +333,17 @@ public class PlayerCharacter : MonoBehaviour
             return;
         }
 
+        UpdateDiveLandingStun();
         UpdateGroundState();
         HandleJump();
-        HandleProjectileInput();
+        if (isChargingJump || isDiving || diveLandingStunTimer > 0f)
+        {
+            SetAimVisualsVisible(false);
+        }
+        else
+        {
+            HandleProjectileInput();
+        }
         HandleReviveInput();
     }
 
@@ -334,6 +375,54 @@ public class PlayerCharacter : MonoBehaviour
 
     private void HandleHorizontalMovement()
     {
+        if (isDiving)
+        {
+            body.linearVelocity = new Vector2(0f, -Mathf.Abs(diveSpeed));
+            return;
+        }
+
+        if (diveLandingStunTimer > 0f)
+        {
+            float stoppedX = Mathf.MoveTowards(body.linearVelocity.x, 0f, groundDeceleration * Time.fixedDeltaTime);
+            body.linearVelocity = new Vector2(stoppedX, body.linearVelocity.y);
+            return;
+        }
+
+        float move = GetMoveInput();
+        float currentX = body.linearVelocity.x;
+
+        if (grounded || isChargingJump)
+        {
+            if (IsSideBlocked(move))
+            {
+                move = 0f;
+            }
+
+            float speedMultiplier = isChargingJump ? chargeMoveSpeedMultiplier : 1f;
+            float targetX = move * moveSpeed * speedMultiplier;
+            float acceleration = Mathf.Approximately(move, 0f) ? groundDeceleration : groundAcceleration;
+            float nextX = Mathf.MoveTowards(currentX, targetX, acceleration * Time.fixedDeltaTime);
+            body.linearVelocity = new Vector2(nextX, body.linearVelocity.y);
+            return;
+        }
+
+        if (Mathf.Abs(currentX) > 0.01f && IsSideBlocked(Mathf.Sign(currentX)))
+        {
+            currentX = 0f;
+        }
+
+        if (!Mathf.Approximately(move, 0f) && !IsSideBlocked(move))
+        {
+            float targetX = move * moveSpeed;
+            float maxDelta = airAcceleration * airControlMultiplier * Time.fixedDeltaTime;
+            currentX = Mathf.MoveTowards(currentX, targetX, maxDelta);
+        }
+
+        body.linearVelocity = new Vector2(currentX, body.linearVelocity.y);
+    }
+
+    private float GetMoveInput()
+    {
         float move = 0f;
         if (Input.GetKey(moveLeftKey))
         {
@@ -344,13 +433,7 @@ public class PlayerCharacter : MonoBehaviour
             move += 1f;
         }
 
-        if (IsSideBlocked(move))
-        {
-            move = 0f;
-        }
-
-        float controlMultiplier = grounded ? 1f : airControlMultiplier;
-        body.linearVelocity = new Vector2(move * moveSpeed * controlMultiplier, body.linearVelocity.y);
+        return Mathf.Clamp(move, -1f, 1f);
     }
 
     private bool IsSideBlocked(float move)
@@ -397,7 +480,9 @@ public class PlayerCharacter : MonoBehaviour
         filter.SetLayerMask(groundMask);
         filter.useTriggers = false;
 
+        bool wasGrounded = grounded;
         grounded = false;
+        lastGroundHit = default;
         int hitCount = bodyCollider.Cast(Vector2.down, filter, groundHits, groundCastDistance);
         for (int i = 0; i < hitCount; i++)
         {
@@ -405,15 +490,23 @@ public class PlayerCharacter : MonoBehaviour
             if (hit.collider != null && !hit.collider.isTrigger && !IsPlayerCollider(hit.collider) && hit.normal.y >= minimumGroundNormalY)
             {
                 grounded = true;
+                lastGroundHit = hit;
                 break;
             }
         }
 
+        if (!wasGrounded && grounded && body.linearVelocity.y <= 0.01f)
+        {
+            HandleLanding(lastGroundHit);
+        }
+
         if (grounded)
         {
-            if (body.linearVelocity.y <= 0.01f)
+            if (body.linearVelocity.y <= 0.01f && !isDiving)
             {
                 jumpConsumedUntilLanding = false;
+                diveUsed = false;
+                jumpInputReleasedAfterLaunch = true;
             }
 
             coyoteTimer = jumpConsumedUntilLanding ? 0f : coyoteTime;
@@ -433,18 +526,266 @@ public class PlayerCharacter : MonoBehaviour
     {
         bool jumpPressed = Input.GetKeyDown(jumpKey) || Input.GetKeyDown(alternateJumpKey);
         bool jumpReleased = Input.GetKeyUp(jumpKey) || Input.GetKeyUp(alternateJumpKey);
+        bool jumpHeld = Input.GetKey(jumpKey) || Input.GetKey(alternateJumpKey);
 
-        if (jumpPressed && coyoteTimer > 0f && !jumpConsumedUntilLanding)
+        if (isDiving || diveLandingStunTimer > 0f)
         {
-            body.linearVelocity = new Vector2(body.linearVelocity.x, jumpVelocity);
-            coyoteTimer = 0f;
-            jumpConsumedUntilLanding = true;
+            return;
         }
 
-        if (jumpReleased && body.linearVelocity.y > 0f)
+        if (isChargingJump)
         {
-            body.linearVelocity = new Vector2(body.linearVelocity.x, body.linearVelocity.y * jumpCutMultiplier);
+            jumpChargeTimer = Mathf.Min(jumpChargeTimer + Time.deltaTime, Mathf.Max(0f, maxChargeTime));
+            if (jumpReleased && !jumpHeld)
+            {
+                LaunchChargedJump();
+            }
+            return;
         }
+
+        if (grounded || coyoteTimer > 0f)
+        {
+            if (jumpPressed && !jumpConsumedUntilLanding)
+            {
+                StartJumpCharge();
+            }
+            return;
+        }
+
+        if (!jumpHeld)
+        {
+            jumpInputReleasedAfterLaunch = true;
+        }
+
+        if (jumpPressed && jumpInputReleasedAfterLaunch && !diveUsed)
+        {
+            StartDive();
+        }
+    }
+
+    private void StartJumpCharge()
+    {
+        isChargingJump = true;
+        jumpChargeTimer = 0f;
+        isDiving = false;
+        body.linearVelocity = new Vector2(body.linearVelocity.x, Mathf.Min(0f, body.linearVelocity.y));
+    }
+
+    private void LaunchChargedJump()
+    {
+        float charge = JumpChargeNormalized;
+        float verticalVelocity = Mathf.Lerp(minJumpPower, maxJumpPower, charge);
+        float horizontalCharge = Mathf.Lerp(minHorizontalChargeMultiplier, 1f, charge);
+        float direction = GetMoveInput();
+        float horizontalVelocity = Mathf.Approximately(direction, 0f)
+            ? 0f
+            : Mathf.Sign(direction) * horizontalJumpPower * horizontalCharge;
+
+        isChargingJump = false;
+        jumpChargeTimer = 0f;
+        jumpConsumedUntilLanding = true;
+        jumpInputReleasedAfterLaunch = false;
+        diveUsed = false;
+        coyoteTimer = 0f;
+        grounded = false;
+        body.linearVelocity = new Vector2(horizontalVelocity, verticalVelocity);
+    }
+
+    private void StartDive()
+    {
+        isChargingJump = false;
+        jumpChargeTimer = 0f;
+        isDiving = true;
+        diveUsed = true;
+        jumpInputReleasedAfterLaunch = false;
+        body.linearVelocity = new Vector2(0f, -Mathf.Abs(diveSpeed));
+    }
+
+    private void HandleLanding(RaycastHit2D groundHit)
+    {
+        bool landedFromDive = isDiving;
+        if (landedFromDive)
+        {
+            CompleteDiveLanding(groundHit);
+        }
+
+        isChargingJump = false;
+        jumpChargeTimer = 0f;
+        isDiving = false;
+        diveUsed = false;
+        jumpConsumedUntilLanding = false;
+        jumpInputReleasedAfterLaunch = true;
+    }
+
+    private void CompleteDiveLanding(RaycastHit2D groundHit)
+    {
+        Vector2 impactPoint = GetImpactPoint(groundHit);
+        DispatchDiveImpact(groundHit.collider, impactPoint);
+        DispatchShockwave(impactPoint);
+        CreateShockwaveVisual(impactPoint);
+
+        if (body.linearVelocity.y <= 0.1f)
+        {
+            diveLandingStunTimer = Mathf.Max(diveLandingStunTimer, diveLandingStun);
+            body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
+        }
+    }
+
+    private Vector2 GetImpactPoint(RaycastHit2D groundHit)
+    {
+        if (groundHit.collider != null)
+        {
+            return groundHit.point;
+        }
+
+        Bounds bounds = bodyCollider.bounds;
+        return new Vector2(bounds.center.x, bounds.min.y);
+    }
+
+    private void DispatchDiveImpact(Collider2D hitCollider, Vector2 impactPoint)
+    {
+        if (hitCollider == null)
+        {
+            return;
+        }
+
+        MonoBehaviour[] behaviours = hitCollider.GetComponentsInParent<MonoBehaviour>();
+        for (int i = 0; i < behaviours.Length; i++)
+        {
+            if (behaviours[i] is IDiveImpactReceiver receiver)
+            {
+                receiver.OnDiveImpact(impactPoint, gameObject);
+            }
+        }
+    }
+
+    private void DispatchShockwave(Vector2 origin)
+    {
+        if (shockwaveRadius <= 0f)
+        {
+            return;
+        }
+
+        Collider2D[] hits = Physics2D.OverlapCircleAll(origin, shockwaveRadius, shockwaveMask);
+        var invokedReceivers = new HashSet<MonoBehaviour>();
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider2D hit = hits[i];
+            if (hit == null || hit == bodyCollider || IsPlayerCollider(hit))
+            {
+                continue;
+            }
+
+            Vector2 closestPoint = hit.ClosestPoint(origin);
+            float distance = Vector2.Distance(origin, closestPoint);
+            MonoBehaviour[] behaviours = hit.GetComponentsInParent<MonoBehaviour>();
+            for (int behaviourIndex = 0; behaviourIndex < behaviours.Length; behaviourIndex++)
+            {
+                MonoBehaviour behaviour = behaviours[behaviourIndex];
+                if (behaviour == null || !invokedReceivers.Add(behaviour))
+                {
+                    continue;
+                }
+
+                if (behaviour is IShockwaveReceiver receiver)
+                {
+                    if (shockwaveDelayByDistance && shockwaveRadius > 0f)
+                    {
+                        float delay = Mathf.Clamp01(distance / shockwaveRadius) * Mathf.Max(0f, shockwaveDuration);
+                        StartCoroutine(DispatchShockwaveAfterDelay(receiver, origin, distance, delay));
+                    }
+                    else
+                    {
+                        receiver.OnShockwave(origin, distance, gameObject);
+                    }
+                }
+            }
+        }
+    }
+
+    private IEnumerator DispatchShockwaveAfterDelay(IShockwaveReceiver receiver, Vector2 origin, float distance, float delay)
+    {
+        if (delay > 0f)
+        {
+            yield return new WaitForSeconds(delay);
+        }
+
+        receiver.OnShockwave(origin, distance, gameObject);
+    }
+
+    private void CreateShockwaveVisual(Vector2 origin)
+    {
+        if (shockwaveDuration <= 0f || shockwaveRadius <= 0f)
+        {
+            return;
+        }
+
+        var ringObject = new GameObject("DiveShockwaveVisual");
+        ringObject.transform.position = origin;
+        ringObject.layer = aimVisualLayer >= 0 ? aimVisualLayer : gameObject.layer;
+
+        LineRenderer ring = ringObject.AddComponent<LineRenderer>();
+        ring.useWorldSpace = true;
+        ring.loop = true;
+        ring.positionCount = 48;
+        ring.startWidth = 0.045f;
+        ring.endWidth = 0.045f;
+        ring.sortingOrder = GetAimLineSortingOrder(24);
+        if (spriteRenderer != null)
+        {
+            ring.sortingLayerID = spriteRenderer.sortingLayerID;
+        }
+        if (aimLineMaterial != null)
+        {
+            ring.sharedMaterial = aimLineMaterial;
+        }
+
+        StartCoroutine(AnimateShockwaveVisual(ringObject, ring, origin));
+    }
+
+    private IEnumerator AnimateShockwaveVisual(GameObject ringObject, LineRenderer ring, Vector2 origin)
+    {
+        float elapsed = 0f;
+        while (elapsed < shockwaveDuration && ring != null)
+        {
+            elapsed += Time.deltaTime;
+            float t = shockwaveDuration <= 0f ? 1f : Mathf.Clamp01(elapsed / shockwaveDuration);
+            float radius = Mathf.Lerp(0.05f, shockwaveRadius, t);
+            Color color = new Color(1f, 0.92f, 0.35f, Mathf.Lerp(0.55f, 0f, t));
+            ring.startColor = color;
+            ring.endColor = color;
+            SetShockwaveRingPositions(ring, origin, radius);
+            yield return null;
+        }
+
+        if (ringObject != null)
+        {
+            Destroy(ringObject);
+        }
+    }
+
+    private void SetShockwaveRingPositions(LineRenderer ring, Vector2 origin, float radius)
+    {
+        int count = ring.positionCount;
+        for (int i = 0; i < count; i++)
+        {
+            float angle = i / (float)count * Mathf.PI * 2f;
+            Vector3 point = new Vector3(
+                origin.x + Mathf.Cos(angle) * radius,
+                origin.y + Mathf.Sin(angle) * radius,
+                transform.position.z);
+            ring.SetPosition(i, point);
+        }
+    }
+
+    private void UpdateDiveLandingStun()
+    {
+        if (diveLandingStunTimer <= 0f)
+        {
+            return;
+        }
+
+        diveLandingStunTimer = Mathf.Max(0f, diveLandingStunTimer - Time.deltaTime);
     }
 
     private void HandleProjectileInput()
@@ -659,12 +1000,24 @@ public class PlayerCharacter : MonoBehaviour
 
     private void ApplyHeldToolMovementModifiers()
     {
-        if (HeldTool != HeldToolType.Umbrella || body.linearVelocity.y >= 0f)
+        if (isDiving || diveLandingStunTimer > 0f || HeldTool != HeldToolType.Umbrella || body.linearVelocity.y >= 0f)
         {
             return;
         }
 
         body.linearVelocity = new Vector2(body.linearVelocity.x, Mathf.Max(body.linearVelocity.y, -3.5f));
+    }
+
+    private void ResetJumpActionState()
+    {
+        isChargingJump = false;
+        jumpChargeTimer = 0f;
+        isDiving = false;
+        diveUsed = false;
+        jumpConsumedUntilLanding = false;
+        jumpInputReleasedAfterLaunch = true;
+        diveLandingStunTimer = 0f;
+        coyoteTimer = 0f;
     }
 
     private void ApplyElementColor()
@@ -720,6 +1073,7 @@ public class PlayerCharacter : MonoBehaviour
     private void OnDrawGizmosSelected()
     {
         DrawGroundCastGizmo();
+        DrawShockwaveGizmo();
         DrawReviveRangeGizmo();
         DrawProjectileGizmos();
     }
@@ -756,6 +1110,12 @@ public class PlayerCharacter : MonoBehaviour
         Gizmos.DrawWireSphere(transform.position, Mathf.Max(0f, reviveRange));
     }
 
+    private void DrawShockwaveGizmo()
+    {
+        Gizmos.color = ShockwaveGizmoColor;
+        Gizmos.DrawWireSphere(transform.position, Mathf.Max(0f, shockwaveRadius));
+    }
+
     private void DrawProjectileGizmos()
     {
         float spawnOffset = Mathf.Max(0f, projectileSpawnOffset);
@@ -771,6 +1131,31 @@ public class PlayerCharacter : MonoBehaviour
 
         Gizmos.color = ProjectileColliderGizmoColor;
         Gizmos.DrawWireSphere(sampleSpawn, colliderRadius);
+    }
+
+    private void OnValidate()
+    {
+        moveSpeed = Mathf.Max(0f, moveSpeed);
+        airControlMultiplier = Mathf.Clamp01(airControlMultiplier);
+        groundAcceleration = Mathf.Max(0f, groundAcceleration);
+        groundDeceleration = Mathf.Max(0f, groundDeceleration);
+        airAcceleration = Mathf.Max(0f, airAcceleration);
+        coyoteTime = Mathf.Max(0f, coyoteTime);
+        groundCastDistance = Mathf.Max(0f, groundCastDistance);
+        sideCastDistance = Mathf.Max(0f, sideCastDistance);
+        minimumGroundNormalY = Mathf.Clamp01(minimumGroundNormalY);
+
+        maxChargeTime = Mathf.Max(0f, maxChargeTime);
+        minJumpPower = Mathf.Max(0f, minJumpPower);
+        maxJumpPower = Mathf.Max(minJumpPower, maxJumpPower);
+        horizontalJumpPower = Mathf.Max(0f, horizontalJumpPower);
+        minHorizontalChargeMultiplier = Mathf.Clamp01(minHorizontalChargeMultiplier);
+        chargeMoveSpeedMultiplier = Mathf.Clamp01(chargeMoveSpeedMultiplier);
+
+        diveSpeed = Mathf.Max(0f, diveSpeed);
+        diveLandingStun = Mathf.Max(0f, diveLandingStun);
+        shockwaveRadius = Mathf.Max(0f, shockwaveRadius);
+        shockwaveDuration = Mathf.Max(0f, shockwaveDuration);
     }
 
     private void OnDestroy()

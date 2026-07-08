@@ -1839,11 +1839,11 @@ MonoBehaviour:
   alternateJumpKey: 303
   interactKey: 305
   fireMouseButton: 1
-  moveSpeed: 7
-  airControlMultiplier: 0.75
+  moveSpeed: 5
+  airControlMultiplier: 0.18
   jumpVelocity: 12.75
   jumpCutMultiplier: 0.45
-  coyoteTime: 0.025
+  coyoteTime: 0.1
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -13234,11 +13234,11 @@ MonoBehaviour:
   alternateJumpKey: 32
   interactKey: 101
   fireMouseButton: 0
-  moveSpeed: 7
-  airControlMultiplier: 0.75
+  moveSpeed: 5
+  airControlMultiplier: 0.18
   jumpVelocity: 12.75
   jumpCutMultiplier: 0.45
-  coyoteTime: 0.025
+  coyoteTime: 0.1
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
