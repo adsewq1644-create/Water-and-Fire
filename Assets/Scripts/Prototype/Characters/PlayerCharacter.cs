@@ -61,6 +61,13 @@ public class PlayerCharacter : MonoBehaviour
     [SerializeField] private bool shockwaveDelayByDistance = true;
     [SerializeField] private LayerMask shockwaveMask = ~0;
 
+    [Header("Down Slam Bounce Lock")]
+    [SerializeField] private bool useApexPercentDownSlamLock = true;
+    [SerializeField, Range(0f, 1f)] private float unlockAtApexTimePercent = 0.35f;
+    [SerializeField] private float minDownSlamBounceLockTime = 0.12f;
+    [SerializeField] private float maxDownSlamBounceLockTime = 0.35f;
+    [SerializeField] private bool debugDownSlamBounceLock;
+
     [Header("Combat")]
     [SerializeField] private float projectileCooldown = 2f;
     [SerializeField] private float projectileMaxForce = 14f;
@@ -107,9 +114,14 @@ public class PlayerCharacter : MonoBehaviour
     private bool diveUsed;
     private bool isDiving;
     private bool fullChargeJumpActive;
+    private float diveStartY;
+    private float lastDiveFallDistance;
     private float diveLandingStunTimer;
     private bool suppressDiveLandingStunThisImpact;
     private float bouncePlatformGroundIgnoreTimer;
+    private float downSlamBounceLockTimer;
+    private float lastDownSlamBounceLockDuration;
+    private float lastDownSlamBounceStartVelocityY;
     private RaycastHit2D lastGroundHit;
     private float nextFireTime;
     private bool dragging;
@@ -134,6 +146,7 @@ public class PlayerCharacter : MonoBehaviour
     public bool IsChargingJump => isChargingJump;
     public bool IsDiving => isDiving;
     public bool IsDiveBounceGroundIgnored => bouncePlatformGroundIgnoreTimer > 0f;
+    public float LastDiveFallDistance => lastDiveFallDistance;
     public float CurrentMoveInput => GetMoveInput();
     public float JumpChargeNormalized => maxChargeTime <= 0f ? 1f : Mathf.Clamp01(jumpChargeTimer / maxChargeTime);
     public int JumpChargeStep => Mathf.Clamp(Mathf.FloorToInt(JumpChargeNormalized * 3f) + 1, 1, 3);
@@ -163,6 +176,7 @@ public class PlayerCharacter : MonoBehaviour
         jumpInputReleasedAfterLaunch = false;
         diveUsed = false;
         bouncePlatformGroundIgnoreTimer = Mathf.Max(bouncePlatformGroundIgnoreTimer, BouncePlatformGroundIgnoreTime);
+        StartDownSlamBounceLock(velocity.y);
 
         if (body != null)
         {
@@ -373,6 +387,8 @@ public class PlayerCharacter : MonoBehaviour
 
     private void Update()
     {
+        UpdateDownSlamBounceLock();
+
         if (!CanReceiveInput())
         {
             SetAimVisualsVisible(false);
@@ -613,7 +629,7 @@ public class PlayerCharacter : MonoBehaviour
             jumpInputReleasedAfterLaunch = true;
         }
 
-        if (jumpPressed && jumpInputReleasedAfterLaunch && !diveUsed)
+        if (jumpPressed && jumpInputReleasedAfterLaunch && !diveUsed && downSlamBounceLockTimer <= 0f)
         {
             StartDive();
         }
@@ -665,6 +681,9 @@ public class PlayerCharacter : MonoBehaviour
         fullChargeJumpActive = false;
         RestoreDefaultGravity();
         jumpInputReleasedAfterLaunch = false;
+        ClearDownSlamBounceLock();
+        diveStartY = transform.position.y;
+        lastDiveFallDistance = 0f;
         body.linearVelocity = new Vector2(0f, -Mathf.Abs(diveSpeed));
     }
 
@@ -689,6 +708,7 @@ public class PlayerCharacter : MonoBehaviour
     private void CompleteDiveLanding(RaycastHit2D groundHit)
     {
         Vector2 impactPoint = GetImpactPoint(groundHit);
+        lastDiveFallDistance = Mathf.Max(0f, diveStartY - impactPoint.y);
         DispatchDiveImpact(groundHit.collider, impactPoint);
         DispatchShockwave(impactPoint);
         CreateShockwaveVisual(impactPoint);
@@ -858,6 +878,54 @@ public class PlayerCharacter : MonoBehaviour
         }
 
         diveLandingStunTimer = Mathf.Max(0f, diveLandingStunTimer - Time.deltaTime);
+    }
+
+    private void UpdateDownSlamBounceLock()
+    {
+        if (downSlamBounceLockTimer <= 0f)
+        {
+            return;
+        }
+
+        downSlamBounceLockTimer = Mathf.Max(0f, downSlamBounceLockTimer - Time.deltaTime);
+    }
+
+    private void StartDownSlamBounceLock(float bounceVelocityY)
+    {
+        lastDownSlamBounceStartVelocityY = Mathf.Max(0f, bounceVelocityY);
+
+        if (!useApexPercentDownSlamLock || bounceVelocityY <= 0f)
+        {
+            downSlamBounceLockTimer = 0f;
+            lastDownSlamBounceLockDuration = 0f;
+            return;
+        }
+
+        float gravityAbs = GetCurrentGravityAbs();
+        float timeToApex = gravityAbs > 0.0001f ? bounceVelocityY / gravityAbs : minDownSlamBounceLockTime;
+        float lockDuration = timeToApex * unlockAtApexTimePercent;
+        lockDuration = Mathf.Clamp(lockDuration, minDownSlamBounceLockTime, maxDownSlamBounceLockTime);
+
+        downSlamBounceLockTimer = Mathf.Max(downSlamBounceLockTimer, lockDuration);
+        lastDownSlamBounceLockDuration = lockDuration;
+    }
+
+    private float GetCurrentGravityAbs()
+    {
+        float gravityScale = body != null ? body.gravityScale : originalGravityScale;
+        if (Mathf.Approximately(gravityScale, 0f))
+        {
+            gravityScale = originalGravityScale;
+        }
+
+        return Mathf.Abs(Physics2D.gravity.y * gravityScale);
+    }
+
+    private void ClearDownSlamBounceLock()
+    {
+        downSlamBounceLockTimer = 0f;
+        lastDownSlamBounceLockDuration = 0f;
+        lastDownSlamBounceStartVelocityY = 0f;
     }
 
     private void HandleProjectileInput()
@@ -1091,6 +1159,7 @@ public class PlayerCharacter : MonoBehaviour
         jumpConsumedUntilLanding = false;
         jumpInputReleasedAfterLaunch = true;
         diveLandingStunTimer = 0f;
+        ClearDownSlamBounceLock();
         coyoteTimer = 0f;
     }
 
@@ -1173,7 +1242,14 @@ public class PlayerCharacter : MonoBehaviour
 
     private void OnGUI()
     {
-        if (!showChargeDebug || !Application.isPlaying || !isChargingJump)
+        if (!Application.isPlaying)
+        {
+            return;
+        }
+
+        bool showCharge = showChargeDebug && isChargingJump;
+        bool showBounceLock = debugDownSlamBounceLock && downSlamBounceLockTimer > 0f;
+        if (!showCharge && !showBounceLock)
         {
             return;
         }
@@ -1190,15 +1266,31 @@ public class PlayerCharacter : MonoBehaviour
             return;
         }
 
-        int chargePercent = Mathf.RoundToInt(JumpChargeNormalized * 100f);
-        var labelRect = new Rect(screenPosition.x - 52f, Screen.height - screenPosition.y - 18f, 104f, 22f);
+        string labelText = string.Empty;
+        if (showCharge)
+        {
+            int chargePercent = Mathf.RoundToInt(JumpChargeNormalized * 100f);
+            labelText = $"Charge: {chargePercent}%";
+        }
+
+        if (showBounceLock)
+        {
+            float normalizedLock = lastDownSlamBounceLockDuration > 0f
+                ? downSlamBounceLockTimer / lastDownSlamBounceLockDuration
+                : 0f;
+            string lockText = $"Dive Lock: {downSlamBounceLockTimer:0.00}s ({normalizedLock * 100f:0}%, vy {lastDownSlamBounceStartVelocityY:0.0})";
+            labelText = string.IsNullOrEmpty(labelText) ? lockText : labelText + "\n" + lockText;
+        }
+
+        float labelHeight = showCharge && showBounceLock ? 40f : 22f;
+        var labelRect = new Rect(screenPosition.x - 110f, Screen.height - screenPosition.y - 18f, 220f, labelHeight);
         Color previousColor = GUI.color;
 
         GUI.color = new Color(0f, 0f, 0f, 0.62f);
         GUI.Box(labelRect, GUIContent.none);
 
         GUI.color = Color.white;
-        GUI.Label(labelRect, $"Charge: {chargePercent}%");
+        GUI.Label(labelRect, labelText);
 
         GUI.color = previousColor;
     }
@@ -1292,6 +1384,9 @@ public class PlayerCharacter : MonoBehaviour
         diveLandingStun = Mathf.Max(0f, diveLandingStun);
         shockwaveRadius = Mathf.Max(0f, shockwaveRadius);
         shockwaveDuration = Mathf.Max(0f, shockwaveDuration);
+        unlockAtApexTimePercent = Mathf.Clamp01(unlockAtApexTimePercent);
+        minDownSlamBounceLockTime = Mathf.Max(0f, minDownSlamBounceLockTime);
+        maxDownSlamBounceLockTime = Mathf.Max(minDownSlamBounceLockTime, maxDownSlamBounceLockTime);
     }
 
     private void OnDestroy()
