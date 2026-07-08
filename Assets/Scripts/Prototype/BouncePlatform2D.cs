@@ -45,6 +45,11 @@ public class BouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
 
         Rigidbody2D instigatorBody = instigator != null ? instigator.GetComponent<Rigidbody2D>() : null;
         PlayerCharacter player = instigator != null ? instigator.GetComponent<PlayerCharacter>() : null;
+        if (player != null)
+        {
+            player.SuppressDiveLandingStunThisImpact();
+        }
+
         bounceRoutine = StartCoroutine(BounceAfterCompression(instigatorBody, player));
     }
 
@@ -69,7 +74,14 @@ public class BouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
                 velocity.x = Mathf.Sign(horizontalInput) * bounceHorizontalVelocity;
             }
 
-            instigatorBody.linearVelocity = velocity;
+            if (player != null)
+            {
+                player.ApplyBouncePlatformVelocity(velocity);
+            }
+            else
+            {
+                instigatorBody.linearVelocity = velocity;
+            }
         }
 
         yield return MoveVisual(compressedPosition, visualRestLocalPosition, recoverTime);

@@ -14,6 +14,7 @@ public class PlayerCharacter : MonoBehaviour
     private static readonly Color ProjectileVisualGizmoColor = new Color(0.35f, 0.85f, 1f, 0.7f);
     private static readonly Color ProjectileColliderGizmoColor = new Color(1f, 0.85f, 0.1f, 0.9f);
     private static readonly Color ShockwaveGizmoColor = new Color(1f, 0.92f, 0.35f, 0.5f);
+    private const float BouncePlatformGroundIgnoreTime = 0.1f;
 
     [Header("Identity")]
     [SerializeField] private string playerId = "Player";
@@ -107,6 +108,8 @@ public class PlayerCharacter : MonoBehaviour
     private bool isDiving;
     private bool fullChargeJumpActive;
     private float diveLandingStunTimer;
+    private bool suppressDiveLandingStunThisImpact;
+    private float bouncePlatformGroundIgnoreTimer;
     private RaycastHit2D lastGroundHit;
     private float nextFireTime;
     private bool dragging;
@@ -133,6 +136,33 @@ public class PlayerCharacter : MonoBehaviour
     public float CurrentMoveInput => GetMoveInput();
     public float JumpChargeNormalized => maxChargeTime <= 0f ? 1f : Mathf.Clamp01(jumpChargeTimer / maxChargeTime);
     public int JumpChargeStep => Mathf.Clamp(Mathf.FloorToInt(JumpChargeNormalized * 3f) + 1, 1, 3);
+
+    public void SuppressDiveLandingStunThisImpact()
+    {
+        suppressDiveLandingStunThisImpact = true;
+    }
+
+    public void ApplyBouncePlatformVelocity(Vector2 velocity)
+    {
+        isChargingJump = false;
+        jumpChargeTimer = 0f;
+        isDiving = false;
+        fullChargeJumpActive = false;
+        RestoreDefaultGravity();
+        diveLandingStunTimer = 0f;
+        grounded = false;
+        lastGroundHit = default;
+        coyoteTimer = 0f;
+        jumpConsumedUntilLanding = true;
+        jumpInputReleasedAfterLaunch = false;
+        diveUsed = false;
+        bouncePlatformGroundIgnoreTimer = Mathf.Max(bouncePlatformGroundIgnoreTimer, BouncePlatformGroundIgnoreTime);
+
+        if (body != null)
+        {
+            body.linearVelocity = velocity;
+        }
+    }
 
     public void Configure(string id, ElementType characterElement, KeyCode left, KeyCode right, KeyCode jump, KeyCode alternateJump, KeyCode interact, int mouseButton)
     {
@@ -487,6 +517,15 @@ public class PlayerCharacter : MonoBehaviour
 
     private void UpdateGroundState()
     {
+        if (bouncePlatformGroundIgnoreTimer > 0f)
+        {
+            bouncePlatformGroundIgnoreTimer = Mathf.Max(0f, bouncePlatformGroundIgnoreTimer - Time.deltaTime);
+            grounded = false;
+            lastGroundHit = default;
+            coyoteTimer = 0f;
+            return;
+        }
+
         var filter = new ContactFilter2D();
         filter.SetLayerMask(groundMask);
         filter.useTriggers = false;
@@ -648,7 +687,10 @@ public class PlayerCharacter : MonoBehaviour
         DispatchShockwave(impactPoint);
         CreateShockwaveVisual(impactPoint);
 
-        if (body.linearVelocity.y <= 0.1f)
+        bool suppressStun = suppressDiveLandingStunThisImpact;
+        suppressDiveLandingStunThisImpact = false;
+
+        if (!suppressStun && body.linearVelocity.y <= 0.1f)
         {
             diveLandingStunTimer = Mathf.Max(diveLandingStunTimer, diveLandingStun);
             body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
