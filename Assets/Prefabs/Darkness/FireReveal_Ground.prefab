@@ -79,7 +79,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_Sprite: {fileID: 3992065188525367219, guid: 48de9cd8461b71243afc22baeef9d4b7, type: 3}
-  m_Color: {r: 0.32, g: 0.32, b: 0.32, a: 1}
+  m_Color: {r: 0.32, g: 0.32, b: 0.32, a: 0}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -148,7 +148,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   silhouetteRenderer: {fileID: 0}
-  revealedRenderer: {fileID: 3510266146826774288, guid: 3340a80e1a9348489769d40620a8a37d, type: 3}
+  revealedRenderer: {fileID: 325102463678490747}
   hiddenAlpha: 0
   revealedAlpha: 1
   silhouetteAlpha: 0
