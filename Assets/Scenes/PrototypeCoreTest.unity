@@ -874,7 +874,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   target: {fileID: 1939229227}
-  offset: {x: 0, y: 1.5, z: -10}
+  offset: {x: 0, y: 2.5, z: -10}
   smoothTime: 0.15
 --- !u!1 &619394800
 GameObject:
@@ -1362,10 +1362,10 @@ MonoBehaviour:
   alternateJumpKey: 32
   interactKey: 101
   fireMouseButton: 0
-  moveSpeed: 5
+  moveSpeed: 6
   airControlMultiplier: 0.18
-  groundAcceleration: 45
-  groundDeceleration: 55
+  groundAcceleration: 100
+  groundDeceleration: 100
   airAcceleration: 12
   coyoteTime: 0.1
   groundMask:
@@ -1375,9 +1375,9 @@ MonoBehaviour:
   sideCastDistance: 0.08
   minimumGroundNormalY: 0.65
   maxChargeTime: 0.7
-  minJumpPower: 7
-  maxJumpPower: 14
-  horizontalJumpPower: 5
+  minJumpPower: 10
+  maxJumpPower: 16
+  horizontalJumpPower: 5.5
   minHorizontalChargeMultiplier: 0.45
   chargeMoveSpeedMultiplier: 0.3
   diveSpeed: 18

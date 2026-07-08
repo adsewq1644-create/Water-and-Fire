@@ -47,6 +47,11 @@ public class PlayerCharacter : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float minHorizontalChargeMultiplier = 0.45f;
     [SerializeField, Range(0f, 1f)] private float chargeMoveSpeedMultiplier = 0.3f;
 
+    [Header("Full Charge Feel")]
+    [SerializeField, Range(0f, 1f)] private float fullChargeThreshold = 0.95f;
+    [SerializeField, Range(0.05f, 1f)] private float fullChargeGravityMultiplier = 0.8f;
+    [SerializeField, Range(0.05f, 1f)] private float fullChargeAirSlowMultiplier = 0.9f;
+
     [Header("Dive")]
     [SerializeField] private float diveSpeed = 18f;
     [SerializeField] private float diveLandingStun = 0.12f;
@@ -81,6 +86,9 @@ public class PlayerCharacter : MonoBehaviour
     [SerializeField] private Color deadColor = new Color(0.35f, 0.35f, 0.35f, 1f);
     [SerializeField] private Color revivingColor = new Color(1f, 1f, 0.55f, 1f);
 
+    [Header("Debug")]
+    [SerializeField] private bool showChargeDebug = true;
+
     private Rigidbody2D body;
     private Collider2D bodyCollider;
     private SpriteRenderer spriteRenderer;
@@ -97,6 +105,7 @@ public class PlayerCharacter : MonoBehaviour
     private bool jumpInputReleasedAfterLaunch = true;
     private bool diveUsed;
     private bool isDiving;
+    private bool fullChargeJumpActive;
     private float diveLandingStunTimer;
     private RaycastHit2D lastGroundHit;
     private float nextFireTime;
@@ -413,8 +422,9 @@ public class PlayerCharacter : MonoBehaviour
 
         if (!Mathf.Approximately(move, 0f) && !IsSideBlocked(move))
         {
-            float targetX = move * moveSpeed;
-            float maxDelta = airAcceleration * airControlMultiplier * Time.fixedDeltaTime;
+            float fullChargeAirMultiplier = fullChargeJumpActive ? fullChargeAirSlowMultiplier : 1f;
+            float targetX = move * moveSpeed * fullChargeAirMultiplier;
+            float maxDelta = airAcceleration * airControlMultiplier * fullChargeAirMultiplier * Time.fixedDeltaTime;
             currentX = Mathf.MoveTowards(currentX, targetX, maxDelta);
         }
 
@@ -577,15 +587,24 @@ public class PlayerCharacter : MonoBehaviour
         float verticalVelocity = Mathf.Lerp(minJumpPower, maxJumpPower, charge);
         float horizontalCharge = Mathf.Lerp(minHorizontalChargeMultiplier, 1f, charge);
         float direction = GetMoveInput();
+        bool fullChargeJump = charge >= fullChargeThreshold;
+        float trajectorySpeedScale = fullChargeJump ? GetFullChargeTrajectorySpeedScale() : 1f;
         float horizontalVelocity = Mathf.Approximately(direction, 0f)
             ? 0f
             : Mathf.Sign(direction) * horizontalJumpPower * horizontalCharge;
+        if (fullChargeJump)
+        {
+            horizontalVelocity *= trajectorySpeedScale;
+            verticalVelocity *= trajectorySpeedScale;
+        }
 
         isChargingJump = false;
         jumpChargeTimer = 0f;
         jumpConsumedUntilLanding = true;
         jumpInputReleasedAfterLaunch = false;
         diveUsed = false;
+        fullChargeJumpActive = fullChargeJump;
+        ApplyFullChargeGravityIfNeeded();
         coyoteTimer = 0f;
         grounded = false;
         body.linearVelocity = new Vector2(horizontalVelocity, verticalVelocity);
@@ -597,6 +616,8 @@ public class PlayerCharacter : MonoBehaviour
         jumpChargeTimer = 0f;
         isDiving = true;
         diveUsed = true;
+        fullChargeJumpActive = false;
+        RestoreDefaultGravity();
         jumpInputReleasedAfterLaunch = false;
         body.linearVelocity = new Vector2(0f, -Mathf.Abs(diveSpeed));
     }
@@ -612,6 +633,8 @@ public class PlayerCharacter : MonoBehaviour
         isChargingJump = false;
         jumpChargeTimer = 0f;
         isDiving = false;
+        fullChargeJumpActive = false;
+        RestoreDefaultGravity();
         diveUsed = false;
         jumpConsumedUntilLanding = false;
         jumpInputReleasedAfterLaunch = true;
@@ -1014,10 +1037,39 @@ public class PlayerCharacter : MonoBehaviour
         jumpChargeTimer = 0f;
         isDiving = false;
         diveUsed = false;
+        fullChargeJumpActive = false;
+        RestoreDefaultGravity();
         jumpConsumedUntilLanding = false;
         jumpInputReleasedAfterLaunch = true;
         diveLandingStunTimer = 0f;
         coyoteTimer = 0f;
+    }
+
+    private void ApplyFullChargeGravityIfNeeded()
+    {
+        if (body == null)
+        {
+            return;
+        }
+
+        body.gravityScale = fullChargeJumpActive
+            ? originalGravityScale * fullChargeGravityMultiplier
+            : originalGravityScale;
+    }
+
+    private float GetFullChargeTrajectorySpeedScale()
+    {
+        return Mathf.Sqrt(Mathf.Clamp(fullChargeGravityMultiplier, 0.05f, 1f));
+    }
+
+    private void RestoreDefaultGravity()
+    {
+        if (body == null)
+        {
+            return;
+        }
+
+        body.gravityScale = originalGravityScale;
     }
 
     private void ApplyElementColor()
@@ -1068,6 +1120,38 @@ public class PlayerCharacter : MonoBehaviour
         }
 
         spriteRenderer.color = aliveColor;
+    }
+
+    private void OnGUI()
+    {
+        if (!showChargeDebug || !Application.isPlaying || !isChargingJump)
+        {
+            return;
+        }
+
+        Camera mainCamera = Camera.main;
+        if (mainCamera == null)
+        {
+            return;
+        }
+
+        Vector3 screenPosition = mainCamera.WorldToScreenPoint(transform.position + Vector3.up * 1.25f);
+        if (screenPosition.z < 0f)
+        {
+            return;
+        }
+
+        int chargePercent = Mathf.RoundToInt(JumpChargeNormalized * 100f);
+        var labelRect = new Rect(screenPosition.x - 52f, Screen.height - screenPosition.y - 18f, 104f, 22f);
+        Color previousColor = GUI.color;
+
+        GUI.color = new Color(0f, 0f, 0f, 0.62f);
+        GUI.Box(labelRect, GUIContent.none);
+
+        GUI.color = Color.white;
+        GUI.Label(labelRect, $"Charge: {chargePercent}%");
+
+        GUI.color = previousColor;
     }
 
     private void OnDrawGizmosSelected()
@@ -1151,6 +1235,9 @@ public class PlayerCharacter : MonoBehaviour
         horizontalJumpPower = Mathf.Max(0f, horizontalJumpPower);
         minHorizontalChargeMultiplier = Mathf.Clamp01(minHorizontalChargeMultiplier);
         chargeMoveSpeedMultiplier = Mathf.Clamp01(chargeMoveSpeedMultiplier);
+        fullChargeThreshold = Mathf.Clamp01(fullChargeThreshold);
+        fullChargeGravityMultiplier = Mathf.Clamp(fullChargeGravityMultiplier, 0.05f, 1f);
+        fullChargeAirSlowMultiplier = Mathf.Clamp(fullChargeAirSlowMultiplier, 0.05f, 1f);
 
         diveSpeed = Mathf.Max(0f, diveSpeed);
         diveLandingStun = Mathf.Max(0f, diveLandingStun);
