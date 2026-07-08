@@ -92,7 +92,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b54f4f7e71fe4dbf86fd18d4fb7c6f42, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  bounceVelocity: 14
+  bounceVerticalVelocity: 14
+  bounceHorizontalVelocity: 6
   releaseDelay: 0.08
   cooldown: 0.15
   visualRoot: {fileID: 200001}

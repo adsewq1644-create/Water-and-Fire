@@ -130,6 +130,7 @@ public class PlayerCharacter : MonoBehaviour
     public bool IsDeadLike => LifeState == PlayerLifeState.Dead || LifeState == PlayerLifeState.ReviveTarget;
     public bool IsChargingJump => isChargingJump;
     public bool IsDiving => isDiving;
+    public float CurrentMoveInput => GetMoveInput();
     public float JumpChargeNormalized => maxChargeTime <= 0f ? 1f : Mathf.Clamp01(jumpChargeTimer / maxChargeTime);
     public int JumpChargeStep => Mathf.Clamp(Mathf.FloorToInt(JumpChargeNormalized * 3f) + 1, 1, 3);
 

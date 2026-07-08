@@ -1,11 +1,14 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [DisallowMultipleComponent]
 public class BouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
 {
     [Header("Bounce")]
-    [SerializeField] private float bounceVelocity = 14f;
+    [FormerlySerializedAs("bounceVelocity")]
+    [SerializeField] private float bounceVerticalVelocity = 14f;
+    [SerializeField] private float bounceHorizontalVelocity = 6f;
     [SerializeField] private float releaseDelay = 0.08f;
     [SerializeField] private float cooldown = 0.15f;
 
@@ -41,10 +44,11 @@ public class BouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
         }
 
         Rigidbody2D instigatorBody = instigator != null ? instigator.GetComponent<Rigidbody2D>() : null;
-        bounceRoutine = StartCoroutine(BounceAfterCompression(instigatorBody));
+        PlayerCharacter player = instigator != null ? instigator.GetComponent<PlayerCharacter>() : null;
+        bounceRoutine = StartCoroutine(BounceAfterCompression(instigatorBody, player));
     }
 
-    private IEnumerator BounceAfterCompression(Rigidbody2D instigatorBody)
+    private IEnumerator BounceAfterCompression(Rigidbody2D instigatorBody, PlayerCharacter player)
     {
         lastBounceTime = Time.time;
 
@@ -58,8 +62,13 @@ public class BouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
 
         if (instigatorBody != null)
         {
-            Vector2 velocity = instigatorBody.linearVelocity;
-            velocity.y = bounceVelocity;
+            float horizontalInput = player != null ? player.CurrentMoveInput : 0f;
+            Vector2 velocity = Vector2.up * bounceVerticalVelocity;
+            if (!Mathf.Approximately(horizontalInput, 0f))
+            {
+                velocity.x = Mathf.Sign(horizontalInput) * bounceHorizontalVelocity;
+            }
+
             instigatorBody.linearVelocity = velocity;
         }
 
@@ -107,7 +116,8 @@ public class BouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
 
     private void OnValidate()
     {
-        bounceVelocity = Mathf.Max(0f, bounceVelocity);
+        bounceVerticalVelocity = Mathf.Max(0f, bounceVerticalVelocity);
+        bounceHorizontalVelocity = Mathf.Max(0f, bounceHorizontalVelocity);
         releaseDelay = Mathf.Max(0f, releaseDelay);
         cooldown = Mathf.Max(0f, cooldown);
         compressDepth = Mathf.Max(0f, compressDepth);
