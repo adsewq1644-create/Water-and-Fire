@@ -51,6 +51,10 @@ public class PlayerCharacter : MonoBehaviour
     [SerializeField] private float horizontalJumpPower = 5f;
     [SerializeField, Range(0f, 1f)] private float minHorizontalChargeMultiplier = 0.45f;
 
+    [Header("Jump Feel")]
+    [SerializeField] private float jumpMotionSpeedMultiplier = 1.25f;
+    [SerializeField] private bool preserveJumpArcWhileReducingAirTime = true;
+
     [Header("Full Charge Feel")]
     [SerializeField, Range(0f, 1f)] private float fullChargeThreshold = 0.95f;
     [SerializeField, Range(0.05f, 1f)] private float fullChargeGravityMultiplier = 0.8f;
@@ -762,13 +766,17 @@ public class PlayerCharacter : MonoBehaviour
             verticalVelocity *= trajectorySpeedScale;
         }
 
+        float jumpMotionScale = GetJumpMotionVelocityScale();
+        horizontalVelocity *= jumpMotionScale;
+        verticalVelocity *= jumpMotionScale;
+
         isChargingJump = false;
         jumpChargeTimer = 0f;
         jumpConsumedUntilLanding = true;
         jumpInputReleasedAfterLaunch = false;
         diveUsed = false;
         fullChargeJumpActive = fullChargeJump;
-        ApplyFullChargeGravityIfNeeded();
+        ApplyJumpGravityForCurrentJump();
         coyoteTimer = 0f;
         grounded = false;
         body.linearVelocity = new Vector2(horizontalVelocity, verticalVelocity);
@@ -1262,21 +1270,33 @@ public class PlayerCharacter : MonoBehaviour
         coyoteTimer = 0f;
     }
 
-    private void ApplyFullChargeGravityIfNeeded()
+    private void ApplyJumpGravityForCurrentJump()
     {
         if (body == null)
         {
             return;
         }
 
-        body.gravityScale = fullChargeJumpActive
-            ? originalGravityScale * fullChargeGravityMultiplier
-            : originalGravityScale;
+        float gravityMultiplier = preserveJumpArcWhileReducingAirTime
+            ? GetJumpMotionVelocityScale() * GetJumpMotionVelocityScale()
+            : 1f;
+
+        if (fullChargeJumpActive)
+        {
+            gravityMultiplier *= fullChargeGravityMultiplier;
+        }
+
+        body.gravityScale = originalGravityScale * gravityMultiplier;
     }
 
     private float GetFullChargeTrajectorySpeedScale()
     {
         return Mathf.Sqrt(Mathf.Clamp(fullChargeGravityMultiplier, 0.05f, 1f));
+    }
+
+    private float GetJumpMotionVelocityScale()
+    {
+        return Mathf.Max(0.01f, jumpMotionSpeedMultiplier);
     }
 
     private void RestoreDefaultGravity()
@@ -1492,6 +1512,7 @@ public class PlayerCharacter : MonoBehaviour
         maxJumpPower = Mathf.Max(minJumpPower, maxJumpPower);
         horizontalJumpPower = Mathf.Max(0f, horizontalJumpPower);
         minHorizontalChargeMultiplier = Mathf.Clamp01(minHorizontalChargeMultiplier);
+        jumpMotionSpeedMultiplier = Mathf.Max(0.01f, jumpMotionSpeedMultiplier);
         fullChargeThreshold = Mathf.Clamp01(fullChargeThreshold);
         fullChargeGravityMultiplier = Mathf.Clamp(fullChargeGravityMultiplier, 0.05f, 1f);
         fullChargeAirSlowMultiplier = Mathf.Clamp(fullChargeAirSlowMultiplier, 0.05f, 1f);
