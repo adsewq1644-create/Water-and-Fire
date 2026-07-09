@@ -391,8 +391,8 @@ MonoBehaviour:
   element: 1
   moveLeftKey: 97
   moveRightKey: 100
-  jumpKey: 119
-  alternateJumpKey: 32
+  jumpKey: 32
+  chargeCancelKey: 115
   interactKey: 101
   fireMouseButton: 0
   moveSpeed: 6
@@ -412,7 +412,6 @@ MonoBehaviour:
   maxJumpPower: 14.25
   horizontalJumpPower: 5.5
   minHorizontalChargeMultiplier: 0.3
-  chargeMoveSpeedMultiplier: 0.1
   fullChargeThreshold: 0.95
   fullChargeGravityMultiplier: 0.55
   fullChargeAirSlowMultiplier: 1
@@ -424,6 +423,11 @@ MonoBehaviour:
   shockwaveMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  useApexPercentDownSlamLock: 1
+  unlockAtApexTimePercent: 0.35
+  minDownSlamBounceLockTime: 0.12
+  maxDownSlamBounceLockTime: 0.35
+  debugDownSlamBounceLock: 0
   projectileCooldown: 2
   projectileMaxForce: 14
   projectileMinForce: 3
@@ -1160,63 +1164,6 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!1001 &1030092608
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 0}
-    m_Modifications:
-    - target: {fileID: 100000, guid: 70cd0de6fa4b44668145f4cf56b4f1bc, type: 3}
-      propertyPath: m_Name
-      value: LeafBouncePlatform
-      objectReference: {fileID: 0}
-    - target: {fileID: 100001, guid: 70cd0de6fa4b44668145f4cf56b4f1bc, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -4.54
-      objectReference: {fileID: 0}
-    - target: {fileID: 100001, guid: 70cd0de6fa4b44668145f4cf56b4f1bc, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0.21
-      objectReference: {fileID: 0}
-    - target: {fileID: 100001, guid: 70cd0de6fa4b44668145f4cf56b4f1bc, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 100001, guid: 70cd0de6fa4b44668145f4cf56b4f1bc, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.9848078
-      objectReference: {fileID: 0}
-    - target: {fileID: 100001, guid: 70cd0de6fa4b44668145f4cf56b4f1bc, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 100001, guid: 70cd0de6fa4b44668145f4cf56b4f1bc, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 100001, guid: 70cd0de6fa4b44668145f4cf56b4f1bc, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0.17364818
-      objectReference: {fileID: 0}
-    - target: {fileID: 100001, guid: 70cd0de6fa4b44668145f4cf56b4f1bc, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 100001, guid: 70cd0de6fa4b44668145f4cf56b4f1bc, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 100001, guid: 70cd0de6fa4b44668145f4cf56b4f1bc, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: -20
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 70cd0de6fa4b44668145f4cf56b4f1bc, type: 3}
 --- !u!1001 &1521859929
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1594,8 +1541,8 @@ MonoBehaviour:
   element: 0
   moveLeftKey: 97
   moveRightKey: 100
-  jumpKey: 119
-  alternateJumpKey: 32
+  jumpKey: 32
+  chargeCancelKey: 115
   interactKey: 101
   fireMouseButton: 0
   moveSpeed: 6
@@ -1610,12 +1557,11 @@ MonoBehaviour:
   groundCastDistance: 0.08
   sideCastDistance: 0.08
   minimumGroundNormalY: 0.65
-  maxChargeTime: 0.6
+  maxChargeTime: 0.55
   minJumpPower: 10
   maxJumpPower: 14.5
   horizontalJumpPower: 6
   minHorizontalChargeMultiplier: 0.45
-  chargeMoveSpeedMultiplier: 0.45
   fullChargeThreshold: 0.95
   fullChargeGravityMultiplier: 0.55
   fullChargeAirSlowMultiplier: 1
@@ -1627,6 +1573,11 @@ MonoBehaviour:
   shockwaveMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  useApexPercentDownSlamLock: 1
+  unlockAtApexTimePercent: 0.35
+  minDownSlamBounceLockTime: 0.12
+  maxDownSlamBounceLockTime: 0.35
+  debugDownSlamBounceLock: 1
   projectileCooldown: 2
   projectileMaxForce: 14
   projectileMinForce: 3
@@ -2008,6 +1959,5 @@ SceneRoots:
   - {fileID: 619394802}
   - {fileID: 214243483}
   - {fileID: 151507428}
-  - {fileID: 1030092608}
   - {fileID: 1891090274}
   - {fileID: 1521859929}

@@ -40,6 +40,10 @@ public class PlayerCharacter : MonoBehaviour
     [SerializeField] private float sideCastDistance = 0.08f;
     [SerializeField] private float minimumGroundNormalY = 0.65f;
 
+    [Header("Wall Air Control")]
+    [SerializeField] private bool disableAirControlOnWallContact = true;
+    [SerializeField, Range(0f, 1f)] private float wallNormalThreshold = 0.6f;
+
     [Header("Charge Jump")]
     [SerializeField] private float maxChargeTime = 0.7f;
     [SerializeField] private float minJumpPower = 7f;
@@ -120,6 +124,7 @@ public class PlayerCharacter : MonoBehaviour
     private float bouncePlatformGroundIgnoreTimer;
     private float downSlamBounceLockTimer;
     private float lastDownSlamBounceLockDuration;
+    private bool wallAirControlLockedUntilGrounded;
     private RaycastHit2D lastGroundHit;
     private float nextFireTime;
     private bool dragging;
@@ -191,6 +196,18 @@ public class PlayerCharacter : MonoBehaviour
         jumpKey = KeyCode.Space;
         interactKey = interact;
         fireMouseButton = mouseButton;
+        ApplyElementColor();
+        EnsureElementVisualEffect();
+    }
+
+    public void SetElementForTesting(ElementType characterElement, string testPlayerId = null)
+    {
+        element = characterElement;
+        if (!string.IsNullOrWhiteSpace(testPlayerId))
+        {
+            playerId = testPlayerId;
+        }
+
         ApplyElementColor();
         EnsureElementVisualEffect();
     }
@@ -414,6 +431,7 @@ public class PlayerCharacter : MonoBehaviour
             return;
         }
 
+        UpdateWallAirControlLock();
         HandleHorizontalMovement();
         ApplyHeldToolMovementModifiers();
     }
@@ -476,6 +494,12 @@ public class PlayerCharacter : MonoBehaviour
             currentX = 0f;
         }
 
+        if (IsWallAirControlLocked())
+        {
+            body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
+            return;
+        }
+
         if (!Mathf.Approximately(move, 0f) && !IsSideBlocked(move))
         {
             float fullChargeAirMultiplier = fullChargeJumpActive ? fullChargeAirSlowMultiplier : 1f;
@@ -500,6 +524,65 @@ public class PlayerCharacter : MonoBehaviour
         }
 
         return Mathf.Clamp(move, -1f, 1f);
+    }
+
+    private void UpdateWallAirControlLock()
+    {
+        if (!disableAirControlOnWallContact || bodyCollider == null)
+        {
+            wallAirControlLockedUntilGrounded = false;
+            return;
+        }
+
+        if (grounded)
+        {
+            wallAirControlLockedUntilGrounded = false;
+            return;
+        }
+
+        if (IsTouchingAirControlWall())
+        {
+            wallAirControlLockedUntilGrounded = true;
+        }
+    }
+
+    private bool IsWallAirControlLocked()
+    {
+        return disableAirControlOnWallContact && !grounded && wallAirControlLockedUntilGrounded;
+    }
+
+    private bool IsTouchingAirControlWall()
+    {
+        return IsTouchingAirControlWall(Vector2.right) || IsTouchingAirControlWall(Vector2.left);
+    }
+
+    private bool IsTouchingAirControlWall(Vector2 direction)
+    {
+        var filter = new ContactFilter2D();
+        filter.SetLayerMask(groundMask);
+        filter.useTriggers = false;
+
+        int hitCount = bodyCollider.Cast(direction, filter, sideHits, sideCastDistance);
+        for (int i = 0; i < hitCount; i++)
+        {
+            var hit = sideHits[i];
+            if (hit.collider == null || hit.collider.isTrigger || IsPlayerCollider(hit.collider))
+            {
+                continue;
+            }
+
+            if (IsAirControlWallNormal(hit.normal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsAirControlWallNormal(Vector2 normal)
+    {
+        return Mathf.Abs(normal.x) >= wallNormalThreshold && normal.y < 0.5f;
     }
 
     private bool IsSideBlocked(float move)
@@ -577,6 +660,8 @@ public class PlayerCharacter : MonoBehaviour
 
         if (grounded)
         {
+            wallAirControlLockedUntilGrounded = false;
+
             if (body.linearVelocity.y <= 0.01f && !isDiving)
             {
                 jumpConsumedUntilLanding = false;
@@ -1400,6 +1485,7 @@ public class PlayerCharacter : MonoBehaviour
         groundCastDistance = Mathf.Max(0f, groundCastDistance);
         sideCastDistance = Mathf.Max(0f, sideCastDistance);
         minimumGroundNormalY = Mathf.Clamp01(minimumGroundNormalY);
+        wallNormalThreshold = Mathf.Clamp01(wallNormalThreshold);
 
         maxChargeTime = Mathf.Max(0f, maxChargeTime);
         minJumpPower = Mathf.Max(0f, minJumpPower);
