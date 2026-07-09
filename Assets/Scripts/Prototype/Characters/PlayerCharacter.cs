@@ -23,8 +23,8 @@ public class PlayerCharacter : MonoBehaviour
     [Header("Input")]
     [SerializeField] private KeyCode moveLeftKey = KeyCode.A;
     [SerializeField] private KeyCode moveRightKey = KeyCode.D;
-    [SerializeField] private KeyCode jumpKey = KeyCode.W;
-    [SerializeField] private KeyCode alternateJumpKey = KeyCode.Space;
+    [SerializeField] private KeyCode jumpKey = KeyCode.Space;
+    [SerializeField] private KeyCode chargeCancelKey = KeyCode.S;
     [SerializeField] private KeyCode interactKey = KeyCode.E;
     [SerializeField] private int fireMouseButton = 0;
 
@@ -46,7 +46,6 @@ public class PlayerCharacter : MonoBehaviour
     [SerializeField] private float maxJumpPower = 14f;
     [SerializeField] private float horizontalJumpPower = 5f;
     [SerializeField, Range(0f, 1f)] private float minHorizontalChargeMultiplier = 0.45f;
-    [SerializeField, Range(0f, 1f)] private float chargeMoveSpeedMultiplier = 0.3f;
 
     [Header("Full Charge Feel")]
     [SerializeField, Range(0f, 1f)] private float fullChargeThreshold = 0.95f;
@@ -121,7 +120,6 @@ public class PlayerCharacter : MonoBehaviour
     private float bouncePlatformGroundIgnoreTimer;
     private float downSlamBounceLockTimer;
     private float lastDownSlamBounceLockDuration;
-    private float lastDownSlamBounceStartVelocityY;
     private RaycastHit2D lastGroundHit;
     private float nextFireTime;
     private bool dragging;
@@ -190,8 +188,7 @@ public class PlayerCharacter : MonoBehaviour
         element = characterElement;
         moveLeftKey = left;
         moveRightKey = right;
-        jumpKey = jump;
-        alternateJumpKey = alternateJump;
+        jumpKey = KeyCode.Space;
         interactKey = interact;
         fireMouseButton = mouseButton;
         ApplyElementColor();
@@ -258,6 +255,7 @@ public class PlayerCharacter : MonoBehaviour
     {
         body = GetComponent<Rigidbody2D>();
         bodyCollider = GetComponent<Collider2D>();
+        jumpKey = KeyCode.Space;
         ApplyFrictionlessColliderMaterial();
         spriteRenderer = GetComponent<SpriteRenderer>();
         SetupAimVisuals();
@@ -450,18 +448,23 @@ public class PlayerCharacter : MonoBehaviour
             return;
         }
 
+        if (isChargingJump)
+        {
+            body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
+            return;
+        }
+
         float move = GetMoveInput();
         float currentX = body.linearVelocity.x;
 
-        if (grounded || isChargingJump)
+        if (grounded)
         {
             if (IsSideBlocked(move))
             {
                 move = 0f;
             }
 
-            float speedMultiplier = isChargingJump ? chargeMoveSpeedMultiplier : 1f;
-            float targetX = move * moveSpeed * speedMultiplier;
+            float targetX = move * moveSpeed;
             float acceleration = Mathf.Approximately(move, 0f) ? groundDeceleration : groundAcceleration;
             float nextX = Mathf.MoveTowards(currentX, targetX, acceleration * Time.fixedDeltaTime);
             body.linearVelocity = new Vector2(nextX, body.linearVelocity.y);
@@ -596,9 +599,9 @@ public class PlayerCharacter : MonoBehaviour
 
     private void HandleJump()
     {
-        bool jumpPressed = Input.GetKeyDown(jumpKey) || Input.GetKeyDown(alternateJumpKey);
-        bool jumpReleased = Input.GetKeyUp(jumpKey) || Input.GetKeyUp(alternateJumpKey);
-        bool jumpHeld = Input.GetKey(jumpKey) || Input.GetKey(alternateJumpKey);
+        bool jumpPressed = Input.GetKeyDown(jumpKey);
+        bool jumpReleased = Input.GetKeyUp(jumpKey);
+        bool jumpHeld = Input.GetKey(jumpKey);
 
         if (isDiving || diveLandingStunTimer > 0f)
         {
@@ -607,6 +610,12 @@ public class PlayerCharacter : MonoBehaviour
 
         if (isChargingJump)
         {
+            if (Input.GetKeyDown(chargeCancelKey))
+            {
+                CancelJumpCharge();
+                return;
+            }
+
             jumpChargeTimer = Mathf.Min(jumpChargeTimer + Time.deltaTime, Mathf.Max(0f, maxChargeTime));
             if (jumpReleased && !jumpHeld)
             {
@@ -640,7 +649,15 @@ public class PlayerCharacter : MonoBehaviour
         isChargingJump = true;
         jumpChargeTimer = 0f;
         isDiving = false;
-        body.linearVelocity = new Vector2(body.linearVelocity.x, Mathf.Min(0f, body.linearVelocity.y));
+        body.linearVelocity = new Vector2(0f, Mathf.Min(0f, body.linearVelocity.y));
+    }
+
+    private void CancelJumpCharge()
+    {
+        isChargingJump = false;
+        jumpChargeTimer = 0f;
+        fullChargeJumpActive = false;
+        body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
     }
 
     private void LaunchChargedJump()
@@ -892,8 +909,6 @@ public class PlayerCharacter : MonoBehaviour
 
     private void StartDownSlamBounceLock(float bounceVelocityY)
     {
-        lastDownSlamBounceStartVelocityY = Mathf.Max(0f, bounceVelocityY);
-
         if (!useApexPercentDownSlamLock || bounceVelocityY <= 0f)
         {
             downSlamBounceLockTimer = 0f;
@@ -925,7 +940,6 @@ public class PlayerCharacter : MonoBehaviour
     {
         downSlamBounceLockTimer = 0f;
         lastDownSlamBounceLockDuration = 0f;
-        lastDownSlamBounceStartVelocityY = 0f;
     }
 
     private void HandleProjectileInput()
@@ -1266,11 +1280,25 @@ public class PlayerCharacter : MonoBehaviour
             return;
         }
 
-        string labelText = string.Empty;
+        Color previousColor = GUI.color;
+        float screenY = Screen.height - screenPosition.y - 18f;
+
         if (showCharge)
         {
-            int chargePercent = Mathf.RoundToInt(JumpChargeNormalized * 100f);
-            labelText = $"Charge: {chargePercent}%";
+            Rect barBackground = new Rect(screenPosition.x - 42f, screenY, 84f, 9f);
+            Rect barFill = new Rect(
+                barBackground.x + 1f,
+                barBackground.y + 1f,
+                (barBackground.width - 2f) * JumpChargeNormalized,
+                barBackground.height - 2f);
+
+            GUI.color = new Color(0f, 0f, 0f, 0.62f);
+            GUI.DrawTexture(barBackground, Texture2D.whiteTexture);
+
+            GUI.color = Color.Lerp(new Color(0.25f, 0.75f, 1f, 0.95f), new Color(1f, 0.92f, 0.15f, 1f), JumpChargeNormalized);
+            GUI.DrawTexture(barFill, Texture2D.whiteTexture);
+
+            screenY += 13f;
         }
 
         if (showBounceLock)
@@ -1278,19 +1306,20 @@ public class PlayerCharacter : MonoBehaviour
             float normalizedLock = lastDownSlamBounceLockDuration > 0f
                 ? downSlamBounceLockTimer / lastDownSlamBounceLockDuration
                 : 0f;
-            string lockText = $"Dive Lock: {downSlamBounceLockTimer:0.00}s ({normalizedLock * 100f:0}%, vy {lastDownSlamBounceStartVelocityY:0.0})";
-            labelText = string.IsNullOrEmpty(labelText) ? lockText : labelText + "\n" + lockText;
+            float unlockProgress = Mathf.Clamp01(1f - normalizedLock);
+            Rect barBackground = new Rect(screenPosition.x - 42f, screenY, 84f, 7f);
+            Rect barFill = new Rect(
+                barBackground.x + 1f,
+                barBackground.y + 1f,
+                (barBackground.width - 2f) * unlockProgress,
+                barBackground.height - 2f);
+
+            GUI.color = new Color(0f, 0f, 0f, 0.62f);
+            GUI.DrawTexture(barBackground, Texture2D.whiteTexture);
+
+            GUI.color = Color.Lerp(new Color(1f, 0.45f, 0.1f, 0.95f), new Color(0.35f, 1f, 0.35f, 1f), unlockProgress);
+            GUI.DrawTexture(barFill, Texture2D.whiteTexture);
         }
-
-        float labelHeight = showCharge && showBounceLock ? 40f : 22f;
-        var labelRect = new Rect(screenPosition.x - 110f, Screen.height - screenPosition.y - 18f, 220f, labelHeight);
-        Color previousColor = GUI.color;
-
-        GUI.color = new Color(0f, 0f, 0f, 0.62f);
-        GUI.Box(labelRect, GUIContent.none);
-
-        GUI.color = Color.white;
-        GUI.Label(labelRect, labelText);
 
         GUI.color = previousColor;
     }
@@ -1360,6 +1389,8 @@ public class PlayerCharacter : MonoBehaviour
 
     private void OnValidate()
     {
+        jumpKey = KeyCode.Space;
+
         moveSpeed = Mathf.Max(0f, moveSpeed);
         airControlMultiplier = Mathf.Clamp01(airControlMultiplier);
         groundAcceleration = Mathf.Max(0f, groundAcceleration);
@@ -1375,7 +1406,6 @@ public class PlayerCharacter : MonoBehaviour
         maxJumpPower = Mathf.Max(minJumpPower, maxJumpPower);
         horizontalJumpPower = Mathf.Max(0f, horizontalJumpPower);
         minHorizontalChargeMultiplier = Mathf.Clamp01(minHorizontalChargeMultiplier);
-        chargeMoveSpeedMultiplier = Mathf.Clamp01(chargeMoveSpeedMultiplier);
         fullChargeThreshold = Mathf.Clamp01(fullChargeThreshold);
         fullChargeGravityMultiplier = Mathf.Clamp(fullChargeGravityMultiplier, 0.05f, 1f);
         fullChargeAirSlowMultiplier = Mathf.Clamp(fullChargeAirSlowMultiplier, 0.05f, 1f);
