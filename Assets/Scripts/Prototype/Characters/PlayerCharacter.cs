@@ -28,6 +28,11 @@ public class PlayerCharacter : MonoBehaviour
     [SerializeField] private KeyCode interactKey = KeyCode.E;
     [SerializeField] private int fireMouseButton = 0;
 
+    [Header("Fall Rescue")]
+    [SerializeField] private bool enableFallRescueInput = true;
+    [SerializeField] private KeyCode rescueRequestKey = KeyCode.F;
+    [SerializeField] private string stableGroundTag = "SafeGround";
+
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 7f;
     [SerializeField, Range(0f, 1f)] private float airControlMultiplier = 0.18f;
@@ -39,10 +44,6 @@ public class PlayerCharacter : MonoBehaviour
     [SerializeField] private float groundCastDistance = 0.08f;
     [SerializeField] private float sideCastDistance = 0.08f;
     [SerializeField] private float minimumGroundNormalY = 0.65f;
-
-    [Header("Wall Air Control")]
-    [SerializeField] private bool disableAirControlOnWallContact = true;
-    [SerializeField, Range(0f, 1f)] private float wallNormalThreshold = 0.6f;
 
     [Header("Charge Jump")]
     [SerializeField] private float maxChargeTime = 0.7f;
@@ -119,6 +120,7 @@ public class PlayerCharacter : MonoBehaviour
     private bool grounded;
     private bool jumpConsumedUntilLanding;
     private bool isChargingJump;
+    private bool stationaryJumpCharge;
     private float jumpChargeTimer;
     private bool jumpInputReleasedAfterLaunch = true;
     private bool diveUsed;
@@ -131,8 +133,9 @@ public class PlayerCharacter : MonoBehaviour
     private float bouncePlatformGroundIgnoreTimer;
     private float downSlamBounceLockTimer;
     private float lastDownSlamBounceLockDuration;
-    private bool wallAirControlLockedUntilGrounded;
     private RaycastHit2D lastGroundHit;
+    private float slipperyExitCarryTimer;
+    private Vector2 slipperyExitCarryVelocity;
     private float nextFireTime;
     private bool dragging;
     private bool externalInputLocked;
@@ -158,29 +161,15 @@ public class PlayerCharacter : MonoBehaviour
     public bool IsDiving => isDiving;
     public bool IsDiveBounceGroundIgnored => bouncePlatformGroundIgnoreTimer > 0f;
     public bool IsGrounded => grounded;
+    public bool IsOnStableGround => grounded && IsStableGroundCollider(lastGroundHit.collider);
     public Vector2 Velocity => body != null ? body.linearVelocity : Vector2.zero;
     public bool HasLastSafePosition => hasLastSafePosition;
     public Vector3 LastSafePosition => hasLastSafePosition ? lastSafePosition : spawnPosition;
     public float LastDiveFallDistance => lastDiveFallDistance;
     public float CurrentMoveInput => GetMoveInput();
+    public KeyCode RescueRequestKey => rescueRequestKey;
     public float JumpChargeNormalized => maxChargeTime <= 0f ? 1f : Mathf.Clamp01(jumpChargeTimer / maxChargeTime);
     public int JumpChargeStep => Mathf.Clamp(Mathf.FloorToInt(JumpChargeNormalized * 3f) + 1, 1, 3);
-
-    public bool CanRequestFallRescue()
-    {
-        return CanRequestFallRescue(2.5f, 1.5f);
-    }
-
-    public bool CanRequestFallRescue(float requiredDropBelowSafePlatform, float minFallingSpeed)
-    {
-        return !externalInputLocked
-            && IsAliveLike
-            && !grounded
-            && hasLastSafePosition
-            && body != null
-            && body.linearVelocity.y <= -Mathf.Abs(minFallingSpeed)
-            && transform.position.y <= LastSafePosition.y - Mathf.Max(0f, requiredDropBelowSafePlatform);
-    }
 
     public void SetInputLocked(bool locked)
     {
@@ -207,6 +196,7 @@ public class PlayerCharacter : MonoBehaviour
     public void ApplyDiveBounce(Vector2 velocity)
     {
         isChargingJump = false;
+        stationaryJumpCharge = false;
         jumpChargeTimer = 0f;
         isDiving = false;
         fullChargeJumpActive = false;
@@ -285,8 +275,6 @@ public class PlayerCharacter : MonoBehaviour
 
         grounded = false;
         lastGroundHit = default;
-        wallAirControlLockedUntilGrounded = false;
-
         if (rememberAsSafePosition)
         {
             lastSafePosition = position;
@@ -489,6 +477,7 @@ public class PlayerCharacter : MonoBehaviour
 
         UpdateDiveLandingStun();
         UpdateGroundState();
+        HandleFallRescueInput();
         HandleJump();
         HandleProjectileInput();
         HandleReviveInput();
@@ -501,9 +490,9 @@ public class PlayerCharacter : MonoBehaviour
             return;
         }
 
-        UpdateWallAirControlLock();
         HandleHorizontalMovement();
         ApplyHeldToolMovementModifiers();
+        UpdateSlipperyExitCarryTimer();
     }
 
     private bool CanReceiveInput()
@@ -539,9 +528,19 @@ public class PlayerCharacter : MonoBehaviour
         if (isChargingJump)
         {
             float chargeMove = GetMoveInput();
+            if (stationaryJumpCharge)
+            {
+                chargeMove = 0f;
+            }
+
             if (IsSideBlocked(chargeMove))
             {
                 chargeMove = 0f;
+            }
+
+            if (TryApplyGroundSlipperyMovement(chargeMove))
+            {
+                return;
             }
 
             float targetX = chargeMove * moveSpeed * chargeMoveSpeedMultiplier;
@@ -561,6 +560,11 @@ public class PlayerCharacter : MonoBehaviour
                 move = 0f;
             }
 
+            if (TryApplyGroundSlipperyMovement(move))
+            {
+                return;
+            }
+
             float targetX = move * moveSpeed;
             float acceleration = Mathf.Approximately(move, 0f) ? groundDeceleration : groundAcceleration;
             float nextX = Mathf.MoveTowards(currentX, targetX, acceleration * Time.fixedDeltaTime);
@@ -568,15 +572,10 @@ public class PlayerCharacter : MonoBehaviour
             return;
         }
 
-        if (Mathf.Abs(currentX) > 0.01f && IsSideBlocked(Mathf.Sign(currentX)))
+        bool preserveSlipperyExit = IsSlipperyExitCarryActive();
+        if (preserveSlipperyExit)
         {
-            currentX = 0f;
-        }
-
-        if (IsWallAirControlLocked())
-        {
-            body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
-            return;
+            currentX = PreserveSlipperyExitHorizontalVelocity(currentX);
         }
 
         if (!Mathf.Approximately(move, 0f) && !IsSideBlocked(move))
@@ -588,6 +587,71 @@ public class PlayerCharacter : MonoBehaviour
         }
 
         body.linearVelocity = new Vector2(currentX, body.linearVelocity.y);
+    }
+
+    private bool TryApplyGroundSlipperyMovement(float move)
+    {
+        SlipperySurface2D slippery = FindSlipperySurface(lastGroundHit.collider);
+        if (slippery == null || !slippery.TryGetGroundSlideDirection(lastGroundHit.normal, out Vector2 slideDirection))
+        {
+            return false;
+        }
+
+        Vector2 targetVelocity = slideDirection * slippery.MaxGroundSlideSpeed;
+        if (!Mathf.Approximately(move, 0f) && slippery.GroundInputControl > 0f)
+        {
+            targetVelocity.x += move * moveSpeed * slippery.GroundInputControl;
+        }
+
+        Vector2 nextVelocity = Vector2.MoveTowards(
+            body.linearVelocity,
+            targetVelocity,
+            slippery.GroundSlideAcceleration * Time.fixedDeltaTime);
+
+        body.linearVelocity = nextVelocity;
+        RememberSlipperyExitCarry(slippery, nextVelocity);
+        return true;
+    }
+
+    private void RememberSlipperyExitCarry(SlipperySurface2D slippery, Vector2 velocity)
+    {
+        if (slippery == null || slippery.ExitCarryTime <= 0f)
+        {
+            return;
+        }
+
+        slipperyExitCarryTimer = slippery.ExitCarryTime;
+        slipperyExitCarryVelocity = velocity;
+    }
+
+    private bool IsSlipperyExitCarryActive()
+    {
+        return slipperyExitCarryTimer > 0f && !grounded;
+    }
+
+    private float PreserveSlipperyExitHorizontalVelocity(float currentX)
+    {
+        if (Mathf.Abs(slipperyExitCarryVelocity.x) <= Mathf.Abs(currentX))
+        {
+            return currentX;
+        }
+
+        return slipperyExitCarryVelocity.x;
+    }
+
+    private void UpdateSlipperyExitCarryTimer()
+    {
+        if (grounded)
+        {
+            slipperyExitCarryTimer = 0f;
+            slipperyExitCarryVelocity = Vector2.zero;
+            return;
+        }
+
+        if (slipperyExitCarryTimer > 0f)
+        {
+            slipperyExitCarryTimer = Mathf.Max(0f, slipperyExitCarryTimer - Time.fixedDeltaTime);
+        }
     }
 
     private float GetMoveInput()
@@ -605,64 +669,18 @@ public class PlayerCharacter : MonoBehaviour
         return Mathf.Clamp(move, -1f, 1f);
     }
 
-    private void UpdateWallAirControlLock()
+    private void HandleFallRescueInput()
     {
-        if (!disableAirControlOnWallContact || bodyCollider == null)
+        if (!enableFallRescueInput || rescueRequestKey == KeyCode.None || !Input.GetKeyDown(rescueRequestKey))
         {
-            wallAirControlLockedUntilGrounded = false;
             return;
         }
 
-        if (grounded)
+        FallRescueManager rescueManager = FindFirstObjectByType<FallRescueManager>();
+        if (rescueManager != null)
         {
-            RememberCurrentSafePosition();
-            wallAirControlLockedUntilGrounded = false;
-            return;
+            rescueManager.RequestRescue(this);
         }
-
-        if (IsTouchingAirControlWall())
-        {
-            wallAirControlLockedUntilGrounded = true;
-        }
-    }
-
-    private bool IsWallAirControlLocked()
-    {
-        return disableAirControlOnWallContact && !grounded && wallAirControlLockedUntilGrounded;
-    }
-
-    private bool IsTouchingAirControlWall()
-    {
-        return IsTouchingAirControlWall(Vector2.right) || IsTouchingAirControlWall(Vector2.left);
-    }
-
-    private bool IsTouchingAirControlWall(Vector2 direction)
-    {
-        var filter = new ContactFilter2D();
-        filter.SetLayerMask(groundMask);
-        filter.useTriggers = false;
-
-        int hitCount = bodyCollider.Cast(direction, filter, sideHits, sideCastDistance);
-        for (int i = 0; i < hitCount; i++)
-        {
-            var hit = sideHits[i];
-            if (hit.collider == null || hit.collider.isTrigger || IsPlayerCollider(hit.collider))
-            {
-                continue;
-            }
-
-            if (IsAirControlWallNormal(hit.normal))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private bool IsAirControlWallNormal(Vector2 normal)
-    {
-        return Mathf.Abs(normal.x) >= wallNormalThreshold && normal.y < 0.5f;
     }
 
     private bool IsSideBlocked(float move)
@@ -740,8 +758,6 @@ public class PlayerCharacter : MonoBehaviour
 
         if (grounded)
         {
-            wallAirControlLockedUntilGrounded = false;
-
             if (body.linearVelocity.y <= 0.01f && !isDiving)
             {
                 jumpConsumedUntilLanding = false;
@@ -750,6 +766,7 @@ public class PlayerCharacter : MonoBehaviour
             }
 
             coyoteTimer = jumpConsumedUntilLanding ? 0f : coyoteTime;
+            RememberCurrentSafePosition();
         }
         else
         {
@@ -764,13 +781,50 @@ public class PlayerCharacter : MonoBehaviour
 
     private void RememberCurrentSafePosition()
     {
-        if (!IsAliveLike || isDiving)
+        if (!IsAliveLike || isDiving || !IsOnStableGround)
         {
             return;
         }
 
         lastSafePosition = transform.position;
         hasLastSafePosition = true;
+    }
+
+    private bool IsStableGroundCollider(Collider2D groundCollider)
+    {
+        if (groundCollider == null || groundCollider.isTrigger)
+        {
+            return false;
+        }
+
+        SlipperySurface2D slippery = FindSlipperySurface(groundCollider);
+        if (slippery != null && slippery.PreventSafeGround)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(stableGroundTag))
+        {
+            return true;
+        }
+
+        Transform current = groundCollider.transform;
+        while (current != null)
+        {
+            if (current.CompareTag(stableGroundTag))
+            {
+                return true;
+            }
+
+            current = current.parent;
+        }
+
+        return false;
+    }
+
+    private SlipperySurface2D FindSlipperySurface(Collider2D source)
+    {
+        return source != null ? source.GetComponentInParent<SlipperySurface2D>() : null;
     }
 
     private void HandleJump()
@@ -822,18 +876,26 @@ public class PlayerCharacter : MonoBehaviour
 
     private void StartJumpCharge()
     {
+        float initialMoveInput = GetMoveInput();
         isChargingJump = true;
+        stationaryJumpCharge = Mathf.Approximately(initialMoveInput, 0f);
         jumpChargeTimer = 0f;
         isDiving = false;
-        body.linearVelocity = new Vector2(0f, Mathf.Min(0f, body.linearVelocity.y));
+        float chargeStartX = stationaryJumpCharge ? 0f : body.linearVelocity.x;
+        body.linearVelocity = new Vector2(chargeStartX, Mathf.Min(0f, body.linearVelocity.y));
     }
 
     private void CancelJumpCharge()
     {
         isChargingJump = false;
+        bool wasStationaryCharge = stationaryJumpCharge;
+        stationaryJumpCharge = false;
         jumpChargeTimer = 0f;
         fullChargeJumpActive = false;
-        body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
+        if (wasStationaryCharge)
+        {
+            body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
+        }
     }
 
     private void LaunchChargedJump()
@@ -858,6 +920,7 @@ public class PlayerCharacter : MonoBehaviour
         verticalVelocity *= jumpMotionScale;
 
         isChargingJump = false;
+        stationaryJumpCharge = false;
         jumpChargeTimer = 0f;
         jumpConsumedUntilLanding = true;
         jumpInputReleasedAfterLaunch = false;
@@ -872,6 +935,7 @@ public class PlayerCharacter : MonoBehaviour
     private void StartDive()
     {
         isChargingJump = false;
+        stationaryJumpCharge = false;
         jumpChargeTimer = 0f;
         isDiving = true;
         diveUsed = true;
@@ -893,6 +957,7 @@ public class PlayerCharacter : MonoBehaviour
         }
 
         isChargingJump = false;
+        stationaryJumpCharge = false;
         jumpChargeTimer = 0f;
         isDiving = false;
         fullChargeJumpActive = false;
@@ -1345,6 +1410,7 @@ public class PlayerCharacter : MonoBehaviour
     private void ResetJumpActionState()
     {
         isChargingJump = false;
+        stationaryJumpCharge = false;
         jumpChargeTimer = 0f;
         isDiving = false;
         diveUsed = false;
@@ -1592,8 +1658,6 @@ public class PlayerCharacter : MonoBehaviour
         groundCastDistance = Mathf.Max(0f, groundCastDistance);
         sideCastDistance = Mathf.Max(0f, sideCastDistance);
         minimumGroundNormalY = Mathf.Clamp01(minimumGroundNormalY);
-        wallNormalThreshold = Mathf.Clamp01(wallNormalThreshold);
-
         maxChargeTime = Mathf.Max(0f, maxChargeTime);
         minJumpPower = Mathf.Max(0f, minJumpPower);
         maxJumpPower = Mathf.Max(minJumpPower, maxJumpPower);
@@ -1615,18 +1679,23 @@ public class PlayerCharacter : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (aimLineMaterial == null)
+        DestroyRuntimeMaterial(aimLineMaterial);
+    }
+
+    private void DestroyRuntimeMaterial(Material material)
+    {
+        if (material == null)
         {
             return;
         }
 
         if (Application.isPlaying)
         {
-            Destroy(aimLineMaterial);
+            Destroy(material);
         }
         else
         {
-            DestroyImmediate(aimLineMaterial);
+            DestroyImmediate(material);
         }
     }
 }
