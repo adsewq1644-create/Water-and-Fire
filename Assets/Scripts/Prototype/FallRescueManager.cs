@@ -25,6 +25,12 @@ public class FallRescueManager : MonoBehaviour
     [SerializeField] private float skillCheckDuration = 2.2f;
     [SerializeField, Range(0.04f, 0.45f)] private float successWindowSize = 0.16f;
     [SerializeField] private float skillCheckStartDelay = 0.15f;
+    [SerializeField] private int checkpointCount = 4;
+
+    [Header("Skill Check Slow Motion")]
+    [SerializeField] private bool slowWorldDuringSkillCheck = true;
+    [SerializeField, Range(0.01f, 1f)] private float skillCheckWorldTimeScale = 0.35f;
+    [SerializeField] private bool scaleFixedDeltaTime = true;
 
     [Header("Failure Join")]
     [SerializeField] private Vector2 partnerJoinOffset = new Vector2(1.25f, 0.35f);
@@ -49,6 +55,9 @@ public class FallRescueManager : MonoBehaviour
     private Vector3 fallbackCameraVelocity;
     private Vector3 rescueSafePosition;
     private float failedAt;
+    private float savedTimeScale = 1f;
+    private float savedFixedDeltaTime = 0.02f;
+    private bool timeScaleOverrideActive;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void EnsureRuntimeInstance()
@@ -74,6 +83,7 @@ public class FallRescueManager : MonoBehaviour
 
     private void OnDisable()
     {
+        RestoreSkillCheckTimeScale();
         SetPlayersInputLocked(false);
         if (skillCheckUI != null)
         {
@@ -162,6 +172,7 @@ public class FallRescueManager : MonoBehaviour
 
         FocusCameraOnFallingPlayer();
         SetPlayersInputLocked(true);
+        ApplySkillCheckTimeScale();
 
         if (skillCheckUI != null)
         {
@@ -174,7 +185,8 @@ public class FallRescueManager : MonoBehaviour
                 "Fire",
                 skillCheckDuration,
                 successWindowSize,
-                skillCheckStartDelay);
+                skillCheckStartDelay,
+                checkpointCount);
         }
 
         state = RescueState.SkillCheck;
@@ -212,6 +224,7 @@ public class FallRescueManager : MonoBehaviour
 
     private void FailSkillCheck()
     {
+        RestoreSkillCheckTimeScale();
         failedAt = Time.time;
         state = RescueState.FailedFalling;
         SetPlayersInputLocked(false);
@@ -250,6 +263,7 @@ public class FallRescueManager : MonoBehaviour
 
     private void EndRescueSequence()
     {
+        RestoreSkillCheckTimeScale();
         SetPlayersInputLocked(false);
 
         if (skillCheckUI != null)
@@ -279,6 +293,37 @@ public class FallRescueManager : MonoBehaviour
         {
             firePlayer.SetInputLocked(locked);
         }
+    }
+
+    private void ApplySkillCheckTimeScale()
+    {
+        if (!slowWorldDuringSkillCheck || timeScaleOverrideActive)
+        {
+            return;
+        }
+
+        savedTimeScale = Time.timeScale;
+        savedFixedDeltaTime = Time.fixedDeltaTime;
+        Time.timeScale = Mathf.Clamp(skillCheckWorldTimeScale, 0.01f, 1f);
+
+        if (scaleFixedDeltaTime)
+        {
+            Time.fixedDeltaTime = Mathf.Max(0.001f, savedFixedDeltaTime * Time.timeScale);
+        }
+
+        timeScaleOverrideActive = true;
+    }
+
+    private void RestoreSkillCheckTimeScale()
+    {
+        if (!timeScaleOverrideActive)
+        {
+            return;
+        }
+
+        Time.timeScale = savedTimeScale;
+        Time.fixedDeltaTime = savedFixedDeltaTime;
+        timeScaleOverrideActive = false;
     }
 
     private PlayerCharacter GetPartnerFor(PlayerCharacter player)
@@ -427,6 +472,8 @@ public class FallRescueManager : MonoBehaviour
         skillCheckDuration = Mathf.Max(0.1f, skillCheckDuration);
         successWindowSize = Mathf.Clamp(successWindowSize, 0.04f, 0.45f);
         skillCheckStartDelay = Mathf.Max(0f, skillCheckStartDelay);
+        checkpointCount = Mathf.Max(1, checkpointCount);
+        skillCheckWorldTimeScale = Mathf.Clamp(skillCheckWorldTimeScale, 0.01f, 1f);
         minFailedFallViewTime = Mathf.Max(0f, minFailedFallViewTime);
         fallbackCameraSmoothTime = Mathf.Max(0.01f, fallbackCameraSmoothTime);
     }

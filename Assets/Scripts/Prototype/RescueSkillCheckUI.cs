@@ -8,18 +8,16 @@ public class RescueSkillCheckUI : MonoBehaviour
         public KeyCode key;
         public string label;
         public bool required;
-        public bool succeeded;
-        public bool failed;
-        public float successCenter;
+        public Color color;
     }
 
-    private const float CircleRadius = 62f;
+    private const float CircleRadius = 68f;
 
     [Header("Visual")]
     [SerializeField] private bool showInstruction = true;
     [SerializeField] private Color circleColor = new Color(0f, 0f, 0f, 0.72f);
-    [SerializeField] private Color inactiveCircleColor = new Color(0f, 0f, 0f, 0.25f);
-    [SerializeField] private Color successZoneColor = new Color(1f, 0.93f, 0.25f, 0.95f);
+    [SerializeField] private Color waterCheckpointColor = new Color(0.25f, 0.75f, 1f, 0.95f);
+    [SerializeField] private Color fireCheckpointColor = new Color(1f, 0.2f, 0.08f, 0.95f);
     [SerializeField] private Color completedColor = new Color(0.25f, 1f, 0.35f, 0.95f);
     [SerializeField] private Color failedColor = new Color(1f, 0.15f, 0.08f, 1f);
 
@@ -27,15 +25,19 @@ public class RescueSkillCheckUI : MonoBehaviour
     private RuntimeCheck fireCheck;
     private bool active;
     private bool failed;
-    private float startedAt;
-    private float duration;
+    private bool completed;
+    private float checkpointStartedAt;
+    private float checkpointDuration;
     private float successWindowSize;
     private float startDelay;
+    private float successCenter;
     private int ignoreInputUntilFrame;
+    private int checkpointIndex;
+    private int totalCheckpoints;
 
     public bool IsActive => active;
     public bool HasFailed => active && failed;
-    public bool HasSucceeded => active && !failed && IsComplete(waterCheck) && IsComplete(fireCheck);
+    public bool HasSucceeded => active && completed;
 
     public void Begin(
         PlayerCharacter waterPlayer,
@@ -46,103 +48,131 @@ public class RescueSkillCheckUI : MonoBehaviour
         string fireLabel,
         float checkDuration,
         float windowSize,
-        float delay)
+        float delay,
+        int checkpointCount)
     {
         active = true;
         failed = false;
-        startedAt = Time.time;
-        duration = Mathf.Max(0.1f, checkDuration);
+        completed = false;
+        checkpointDuration = Mathf.Max(0.1f, checkDuration);
         successWindowSize = Mathf.Clamp(windowSize, 0.04f, 0.45f);
         startDelay = Mathf.Max(0f, delay);
-        ignoreInputUntilFrame = Time.frameCount + 1;
+        totalCheckpoints = Mathf.Max(1, checkpointCount);
 
-        waterCheck = CreateCheck(waterPlayer, waterKey, waterLabel, 0.68f);
-        fireCheck = CreateCheck(firePlayer, fireKey, fireLabel, 0.32f);
+        waterCheck = CreateCheck(waterPlayer, waterKey, waterLabel, waterCheckpointColor);
+        fireCheck = CreateCheck(firePlayer, fireKey, fireLabel, fireCheckpointColor);
+        StartCheckpoint(0);
     }
 
     public void Cancel()
     {
         active = false;
         failed = false;
+        completed = false;
+        checkpointIndex = 0;
+        totalCheckpoints = 0;
         waterCheck = default;
         fireCheck = default;
     }
 
-    private RuntimeCheck CreateCheck(PlayerCharacter player, KeyCode key, string label, float fallbackCenter)
+    private RuntimeCheck CreateCheck(PlayerCharacter player, KeyCode key, string label, Color color)
     {
-        bool required = player != null && player.IsAliveLike;
         return new RuntimeCheck
         {
             player = player,
             key = key,
             label = label,
-            required = required,
-            successCenter = required ? Random.Range(0.18f, 0.82f) : fallbackCenter
+            required = player != null && player.IsAliveLike,
+            color = color
         };
+    }
+
+    private void StartCheckpoint(int index)
+    {
+        checkpointIndex = index;
+        if (checkpointIndex >= totalCheckpoints)
+        {
+            completed = true;
+            return;
+        }
+
+        RuntimeCheck currentCheck = GetCurrentCheck();
+        if (!currentCheck.required)
+        {
+            StartCheckpoint(checkpointIndex + 1);
+            return;
+        }
+
+        checkpointStartedAt = Time.unscaledTime;
+        successCenter = Random.Range(0.18f, 0.82f);
+        ignoreInputUntilFrame = Time.frameCount + 1;
+    }
+
+    private RuntimeCheck GetCurrentCheck()
+    {
+        return checkpointIndex % 2 == 0 ? waterCheck : fireCheck;
+    }
+
+    private RuntimeCheck GetOtherCheck()
+    {
+        return checkpointIndex % 2 == 0 ? fireCheck : waterCheck;
     }
 
     private void Update()
     {
-        if (!active)
+        if (!active || failed || completed)
         {
             return;
         }
 
-        float elapsed = Time.time - startedAt;
+        float elapsed = Time.unscaledTime - checkpointStartedAt;
         if (Time.frameCount <= ignoreInputUntilFrame)
         {
             return;
         }
 
-        UpdateSingleCheck(ref waterCheck, elapsed);
-        UpdateSingleCheck(ref fireCheck, elapsed);
-
-        if (failed)
-        {
-            return;
-        }
-
-        float activeElapsed = elapsed - startDelay;
-        if (activeElapsed > duration && (!IsComplete(waterCheck) || !IsComplete(fireCheck)))
-        {
-            failed = true;
-        }
-    }
-
-    private void UpdateSingleCheck(ref RuntimeCheck check, float elapsed)
-    {
-        if (!check.required || check.succeeded || check.failed)
-        {
-            return;
-        }
-
-        if (!Input.GetKeyDown(check.key))
-        {
-            return;
-        }
+        RuntimeCheck currentCheck = GetCurrentCheck();
+        RuntimeCheck otherCheck = GetOtherCheck();
+        bool currentPressed = Input.GetKeyDown(currentCheck.key);
+        bool otherPressed = otherCheck.required && Input.GetKeyDown(otherCheck.key);
 
         if (elapsed < startDelay)
         {
-            check.failed = true;
+            if (currentPressed || otherPressed)
+            {
+                failed = true;
+            }
+            return;
+        }
+
+        if (otherPressed)
+        {
             failed = true;
             return;
         }
 
-        float normalizedNeedle = GetNeedleNormalized(elapsed);
-        if (IsNeedleInSuccessWindow(normalizedNeedle, check.successCenter))
+        if (currentPressed)
         {
-            check.succeeded = true;
+            if (IsNeedleInSuccessWindow(GetNeedleNormalized(elapsed), successCenter))
+            {
+                StartCheckpoint(checkpointIndex + 1);
+                return;
+            }
+
+            failed = true;
             return;
         }
 
-        check.failed = true;
-        failed = true;
+        if (elapsed - startDelay > checkpointDuration)
+        {
+            failed = true;
+        }
     }
 
     private float GetNeedleNormalized(float elapsed)
     {
         float activeElapsed = Mathf.Max(0f, elapsed - startDelay);
-        return Mathf.Repeat(activeElapsed / duration, 1f);
+        return Mathf.Repeat(activeElapsed / checkpointDuration, 1f);
     }
 
     private bool IsNeedleInSuccessWindow(float needle, float center)
@@ -152,11 +182,6 @@ public class RescueSkillCheckUI : MonoBehaviour
         return delta <= halfWindow;
     }
 
-    private bool IsComplete(RuntimeCheck check)
-    {
-        return !check.required || check.succeeded;
-    }
-
     private void OnGUI()
     {
         if (!Application.isPlaying || !active)
@@ -164,36 +189,50 @@ public class RescueSkillCheckUI : MonoBehaviour
             return;
         }
 
-        float elapsed = Time.time - startedAt;
+        Vector2 center = new Vector2(Screen.width * 0.5f, Screen.height * 0.55f);
+        if (failed)
+        {
+            DrawResult(center, "FAIL", failedColor);
+            return;
+        }
+
+        if (completed)
+        {
+            DrawResult(center, "SUCCESS", completedColor);
+            return;
+        }
+
+        float elapsed = Time.unscaledTime - checkpointStartedAt;
         float normalizedNeedle = GetNeedleNormalized(elapsed);
-        float centerY = Screen.height * 0.55f;
-        DrawSingleCheck(waterCheck, new Vector2(Screen.width * 0.38f, centerY), normalizedNeedle);
-        DrawSingleCheck(fireCheck, new Vector2(Screen.width * 0.62f, centerY), normalizedNeedle);
+        DrawSingleCheckpoint(center, normalizedNeedle);
 
         if (!showInstruction)
         {
             return;
         }
 
+        RuntimeCheck currentCheck = GetCurrentCheck();
         GUI.color = Color.white;
-        GUI.Label(new Rect(Screen.width * 0.5f - 185f, centerY + 88f, 370f, 24f), "Both players must hit inside the bright arc");
+        GUI.Label(new Rect(center.x - 190f, center.y + 96f, 380f, 24f), "Hit the key only when the needle enters the colored arc");
+        GUI.Label(new Rect(center.x - 120f, center.y + 118f, 240f, 24f), $"Checkpoint {checkpointIndex + 1} / {totalCheckpoints}   {currentCheck.label}: {currentCheck.key}");
     }
 
-    private void DrawSingleCheck(RuntimeCheck check, Vector2 center, float normalizedNeedle)
+    private void DrawSingleCheckpoint(Vector2 center, float normalizedNeedle)
     {
-        Color baseColor = check.required ? circleColor : inactiveCircleColor;
-        Color zoneColor = check.succeeded ? completedColor : successZoneColor;
-        Color needleColor = check.failed ? failedColor : Color.white;
+        RuntimeCheck currentCheck = GetCurrentCheck();
+        DrawCircle(center, CircleRadius, circleColor, 8f, 64);
+        DrawArc(center, CircleRadius, successCenter - successWindowSize * 0.5f, successWindowSize, currentCheck.color, 12f, 20);
+        DrawNeedle(center, 60f, normalizedNeedle, Color.white, 4f);
 
-        DrawCircle(center, CircleRadius, baseColor, 8f, 64);
-        DrawArc(center, CircleRadius, check.successCenter - successWindowSize * 0.5f, successWindowSize, zoneColor, 11f, 20);
-        DrawNeedle(center, 56f, normalizedNeedle, needleColor, 4f);
+        GUI.color = currentCheck.color;
+        GUI.Label(new Rect(center.x - 80f, center.y - 108f, 160f, 24f), currentCheck.label + " TURN");
+    }
 
-        GUI.color = Color.white;
-        string stateText = check.required
-            ? check.succeeded ? "SUCCESS" : check.failed ? "FAIL" : check.key.ToString()
-            : "N/A";
-        GUI.Label(new Rect(center.x - 70f, center.y - 98f, 140f, 24f), check.label + " : " + stateText);
+    private void DrawResult(Vector2 center, string text, Color color)
+    {
+        DrawCircle(center, CircleRadius, circleColor, 8f, 64);
+        GUI.color = color;
+        GUI.Label(new Rect(center.x - 70f, center.y - 12f, 140f, 24f), text);
     }
 
     private static void DrawCircle(Vector2 center, float radius, Color color, float width, int segments)
