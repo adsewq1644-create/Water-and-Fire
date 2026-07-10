@@ -17,6 +17,8 @@ public class GamePrototypeManager : MonoBehaviour
 
     public Sprite ProjectileSprite => projectileSprite;
     public Sprite BoxSprite => boxSprite;
+    public PlayerCharacter WaterPlayer => waterPlayer;
+    public PlayerCharacter FirePlayer => firePlayer;
 
     public void Configure(PlayerCharacter water, PlayerCharacter fire)
     {
@@ -56,6 +58,7 @@ public class GamePrototypeManager : MonoBehaviour
         Instance = this;
         projectileSprite = projectileSprite != null ? projectileSprite : BuildRuntimeSprite(32, true);
         boxSprite = boxSprite != null ? boxSprite : BuildRuntimeSprite(16, false);
+
     }
 
     private void Start()

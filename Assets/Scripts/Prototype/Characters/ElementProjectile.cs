@@ -47,8 +47,12 @@ public class ElementProjectile : MonoBehaviour
         var plant = other.GetComponentInParent<GrowablePlant>();
         if (plant != null)
         {
-            plant.ApplyElement(element);
-            Destroy(gameObject);
+            bool changed = plant.ApplyElement(element);
+            if (changed || element != ElementType.Fire || !plant.IsSeedStage)
+            {
+                Destroy(gameObject);
+            }
+
             return;
         }
 

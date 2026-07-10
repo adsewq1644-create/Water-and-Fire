@@ -63,6 +63,8 @@ public class GrowablePlant : MonoBehaviour
 
     public PlantGrowthStage CurrentStage => currentStage;
     public PlantCollisionRole CurrentCollisionRole => GetStageSettings(currentStage).collisionRole;
+    public bool IsSeedStage => currentStage == PlantGrowthStage.Sprout || CurrentCollisionRole == PlantCollisionRole.PassThrough;
+    public bool CanBurnToPreviousStage => !IsSeedStage;
 
     public bool ApplyElement(ElementType sourceElement)
     {
@@ -190,6 +192,11 @@ public class GrowablePlant : MonoBehaviour
     private bool TryStartFireShrink()
     {
         if (transitionRoutine != null)
+        {
+            return false;
+        }
+
+        if (!CanBurnToPreviousStage)
         {
             return false;
         }

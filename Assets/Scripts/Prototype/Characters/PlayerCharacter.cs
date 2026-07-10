@@ -50,6 +50,7 @@ public class PlayerCharacter : MonoBehaviour
     [SerializeField] private float maxJumpPower = 14f;
     [SerializeField] private float horizontalJumpPower = 5f;
     [SerializeField, Range(0f, 1f)] private float minHorizontalChargeMultiplier = 0.45f;
+    [SerializeField, Range(0f, 1f)] private float chargeMoveSpeedMultiplier = 0.35f;
 
     [Header("Jump Feel")]
     [SerializeField] private float jumpMotionSpeedMultiplier = 1.25f;
@@ -112,6 +113,8 @@ public class PlayerCharacter : MonoBehaviour
     private Material aimLineMaterial;
     private PlayerCharacter partner;
     private Vector3 spawnPosition;
+    private Vector3 lastSafePosition;
+    private bool hasLastSafePosition;
     private float coyoteTimer;
     private bool grounded;
     private bool jumpConsumedUntilLanding;
@@ -153,6 +156,10 @@ public class PlayerCharacter : MonoBehaviour
     public bool IsChargingJump => isChargingJump;
     public bool IsDiving => isDiving;
     public bool IsDiveBounceGroundIgnored => bouncePlatformGroundIgnoreTimer > 0f;
+    public bool IsGrounded => grounded;
+    public Vector2 Velocity => body != null ? body.linearVelocity : Vector2.zero;
+    public bool HasLastSafePosition => hasLastSafePosition;
+    public Vector3 LastSafePosition => hasLastSafePosition ? lastSafePosition : spawnPosition;
     public float LastDiveFallDistance => lastDiveFallDistance;
     public float CurrentMoveInput => GetMoveInput();
     public float JumpChargeNormalized => maxChargeTime <= 0f ? 1f : Mathf.Clamp01(jumpChargeTimer / maxChargeTime);
@@ -225,6 +232,39 @@ public class PlayerCharacter : MonoBehaviour
     public void SetSpawn(Vector3 position)
     {
         spawnPosition = position;
+        lastSafePosition = position;
+        hasLastSafePosition = true;
+    }
+
+    public void TeleportForFallRescue(Vector3 position, bool rememberAsSafePosition = true)
+    {
+        transform.position = position;
+        ResetJumpActionState();
+
+        if (body != null)
+        {
+            body.bodyType = originalBodyType;
+            body.gravityScale = originalGravityScale;
+            body.linearVelocity = Vector2.zero;
+            body.angularVelocity = 0f;
+        }
+
+        if (bodyCollider != null)
+        {
+            bodyCollider.isTrigger = originalTrigger;
+        }
+
+        grounded = false;
+        lastGroundHit = default;
+        wallAirControlLockedUntilGrounded = false;
+
+        if (rememberAsSafePosition)
+        {
+            lastSafePosition = position;
+            hasLastSafePosition = true;
+        }
+
+        ApplyPartnerCollisionIgnore();
     }
 
     public void ResetForFullPartyDeath()
@@ -285,6 +325,8 @@ public class PlayerCharacter : MonoBehaviour
         originalBodyType = body.bodyType;
         originalLayer = gameObject.layer;
         spawnPosition = transform.position;
+        lastSafePosition = spawnPosition;
+        hasLastSafePosition = true;
         ApplyElementColor();
         EnsureElementVisualEffect();
     }
@@ -417,14 +459,7 @@ public class PlayerCharacter : MonoBehaviour
         UpdateDiveLandingStun();
         UpdateGroundState();
         HandleJump();
-        if (isChargingJump || isDiving || diveLandingStunTimer > 0f)
-        {
-            SetAimVisualsVisible(false);
-        }
-        else
-        {
-            HandleProjectileInput();
-        }
+        HandleProjectileInput();
         HandleReviveInput();
     }
 
@@ -472,7 +507,16 @@ public class PlayerCharacter : MonoBehaviour
 
         if (isChargingJump)
         {
-            body.linearVelocity = new Vector2(0f, body.linearVelocity.y);
+            float chargeMove = GetMoveInput();
+            if (IsSideBlocked(chargeMove))
+            {
+                chargeMove = 0f;
+            }
+
+            float targetX = chargeMove * moveSpeed * chargeMoveSpeedMultiplier;
+            float acceleration = Mathf.Approximately(chargeMove, 0f) ? groundDeceleration : groundAcceleration;
+            float nextX = Mathf.MoveTowards(body.linearVelocity.x, targetX, acceleration * Time.fixedDeltaTime);
+            body.linearVelocity = new Vector2(nextX, body.linearVelocity.y);
             return;
         }
 
@@ -540,6 +584,7 @@ public class PlayerCharacter : MonoBehaviour
 
         if (grounded)
         {
+            RememberCurrentSafePosition();
             wallAirControlLockedUntilGrounded = false;
             return;
         }
@@ -684,6 +729,17 @@ public class PlayerCharacter : MonoBehaviour
     private bool IsPlayerCollider(Collider2D other)
     {
         return other.GetComponentInParent<PlayerCharacter>() != null;
+    }
+
+    private void RememberCurrentSafePosition()
+    {
+        if (!IsAliveLike || isDiving)
+        {
+            return;
+        }
+
+        lastSafePosition = transform.position;
+        hasLastSafePosition = true;
     }
 
     private void HandleJump()

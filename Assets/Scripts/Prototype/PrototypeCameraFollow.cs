@@ -9,6 +9,8 @@ public class PrototypeCameraFollow : MonoBehaviour
 
     private Vector3 velocity;
 
+    public Transform Target => target;
+
     public void SetTarget(Transform followTarget)
     {
         target = followTarget;
