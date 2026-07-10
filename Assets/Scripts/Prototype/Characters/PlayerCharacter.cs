@@ -135,6 +135,7 @@ public class PlayerCharacter : MonoBehaviour
     private RaycastHit2D lastGroundHit;
     private float nextFireTime;
     private bool dragging;
+    private bool externalInputLocked;
     private Vector2 dragStartScreen;
     private float originalGravityScale;
     private bool originalTrigger;
@@ -164,6 +165,34 @@ public class PlayerCharacter : MonoBehaviour
     public float CurrentMoveInput => GetMoveInput();
     public float JumpChargeNormalized => maxChargeTime <= 0f ? 1f : Mathf.Clamp01(jumpChargeTimer / maxChargeTime);
     public int JumpChargeStep => Mathf.Clamp(Mathf.FloorToInt(JumpChargeNormalized * 3f) + 1, 1, 3);
+
+    public bool CanRequestFallRescue()
+    {
+        return CanRequestFallRescue(2.5f, 1.5f);
+    }
+
+    public bool CanRequestFallRescue(float requiredDropBelowSafePlatform, float minFallingSpeed)
+    {
+        return !externalInputLocked
+            && IsAliveLike
+            && !grounded
+            && hasLastSafePosition
+            && body != null
+            && body.linearVelocity.y <= -Mathf.Abs(minFallingSpeed)
+            && transform.position.y <= LastSafePosition.y - Mathf.Max(0f, requiredDropBelowSafePlatform);
+    }
+
+    public void SetInputLocked(bool locked)
+    {
+        externalInputLocked = locked;
+        if (!locked)
+        {
+            return;
+        }
+
+        dragging = false;
+        SetAimVisualsVisible(false);
+    }
 
     public void SuppressDiveLandingStunThisImpact()
     {
@@ -282,6 +311,7 @@ public class PlayerCharacter : MonoBehaviour
             return;
         }
 
+        externalInputLocked = false;
         LifeState = PlayerLifeState.Dead;
         dragging = false;
         ResetJumpActionState();
@@ -296,6 +326,7 @@ public class PlayerCharacter : MonoBehaviour
 
     public void ReviveToAlive()
     {
+        externalInputLocked = false;
         LifeState = PlayerLifeState.Alive;
         ReviveProgress = 0f;
         ResetJumpActionState();
@@ -477,7 +508,7 @@ public class PlayerCharacter : MonoBehaviour
 
     private bool CanReceiveInput()
     {
-        return LifeState == PlayerLifeState.Alive || LifeState == PlayerLifeState.ReviveCaster;
+        return !externalInputLocked && (LifeState == PlayerLifeState.Alive || LifeState == PlayerLifeState.ReviveCaster);
     }
 
     private void ApplyPartnerCollisionIgnore()
