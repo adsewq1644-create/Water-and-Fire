@@ -1515,9 +1515,9 @@ GameObject:
   - component: {fileID: 1939229225}
   - component: {fileID: 1939229223}
   - component: {fileID: 1939229228}
-  - component: {fileID: 1939229229}
   - component: {fileID: 1939229231}
   - component: {fileID: 1939229230}
+  - component: {fileID: 1939229232}
   m_Layer: 0
   m_Name: Player1_Water
   m_TagString: Untagged
@@ -1649,7 +1649,7 @@ SpriteRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: a97c105638bdf8b4a8650670310a4cd3, type: 2}
+  - {fileID: 2100000, guid: 97c46bd65bb4609419ecdafdb5b63614, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -1742,57 +1742,6 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 0.8, y: 1.2}
   m_EdgeRadius: 0
---- !u!114 &1939229229
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1939229222}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 56408f96ff4271f449581544e2bdd031, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  patternTexture: {fileID: 2800000, guid: a8347f1fefc61ff41b4fd453b7591c1b, type: 3}
-  noiseTexture: {fileID: 2800000, guid: a08887c2f53603e40a46d6c96627494b, type: 3}
-  refractionTexture: {fileID: 2800000, guid: 23180ead499ed32439f4e76d22e3d7f6, type: 3}
-  deepWaterColor: {r: 0.0745, g: 0.3294, b: 0.6706, a: 1}
-  softWaterColor: {r: 0.5843, g: 0.8039, b: 0.9922, a: 1}
-  innerStreamColor: {r: 0.498, g: 0.8314, b: 0.7569, a: 1}
-  rimHighlightColor: {r: 0.7098, g: 0.7373, b: 0.7373, a: 1}
-  glowColor: {r: 0.3725, g: 0.5804, b: 0.7255, a: 1}
-  transparency: 0.72
-  colorIntensity: 0.92
-  backgroundVisibility: 0.258
-  pixelRefractionSize: 3
-  pixelPatternSize: 43.5
-  rimStrength: 1.05
-  emissionIntensity: 4
-  rimEmission: 0.1
-  streamEmission: 1.1
-  outerGlowStrength: 0
-  outerGlowSize: 1
-  edgeSoftness: 0.045
-  patternTiling: 1.35
-  noiseTiling: 3.4
-  idleWobbleStrength: 0.12
-  movingWobbleStrength: 0.35
-  idleWobbleSpeed: 0.9
-  movingWobbleSpeed: 3
-  idleSparkleStrength: 2
-  movingSparkleStrength: 4.5
-  idleRefractionStrength: 0.15
-  movingRefractionStrength: 0.5
-  idleSilhouetteWobble: 0.6
-  movingSilhouetteWobble: 1.4
-  idleInnerFlowStrength: 0.55
-  movingInnerFlowStrength: 1.2
-  idleBackgroundRefraction: 0.5
-  movingBackgroundRefraction: 0.45
-  speedForMaxWobble: 8
-  response: 25
-  presetVersion: 1
 --- !u!114 &1939229230
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1863,6 +1812,35 @@ MonoBehaviour:
   lightColor: {r: 0.35, g: 0.9, b: 1, a: 1}
   onlyInDarkZone: 0
   debugGizmos: 1
+--- !u!114 &1939229232
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1939229222}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ca16988395d2ed4fa05ef4cec4bf51a, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  targetRenderer: {fileID: 1939229226}
+  body: {fileID: 1939229225}
+  playerCharacter: {fileID: 1939229223}
+  speedForMaxResponse: 7
+  movementFlowMultiplier: 1.35
+  movementDistortionMultiplier: 1.28
+  horizontalFlowPull: 0.08
+  horizontalStretchStrength: 0.045
+  stateSmoothSpeed: 8
+  airborneStretchStrength: 0.11
+  fallingStretchStrength: 0.08
+  verticalFlowPull: 0.12
+  verticalSpeedForMaxResponse: 10
+  landingPulseStrength: 1
+  landingPulseDuration: 0.34
+  minimumLandingSpeed: 1.5
+  minimumGroundNormalY: 0.55
 --- !u!1 &1968671340
 GameObject:
   m_ObjectHideFlags: 0

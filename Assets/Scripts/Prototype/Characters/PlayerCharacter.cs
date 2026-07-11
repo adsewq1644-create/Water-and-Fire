@@ -416,13 +416,13 @@ public class PlayerCharacter : MonoBehaviour
         {
             RemoveComponentIfPresent<FireSpriteFlame>();
             RemoveComponentIfPresent<FireSpriteEdgeParticles>();
-            EnsureComponent<WaterSpriteWobble>();
+            EnsureComponent<WaterSpiritShaderController>();
             return;
         }
 
         if (element == ElementType.Fire)
         {
-            RemoveComponentIfPresent<WaterSpriteWobble>();
+            RemoveComponentIfPresent<WaterSpiritShaderController>();
             EnsureComponent<FireSpriteFlame>();
             EnsureComponent<FireSpriteEdgeParticles>();
         }

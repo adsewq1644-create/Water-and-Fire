@@ -1,0 +1,86 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: M_WaterSpirit
+  m_Shader: {fileID: 4800000, guid: f83a06649eb520c40ad1b804ed44bc37, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _AlphaTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DetailNoiseTex:
+        m_Texture: {fileID: 2800000, guid: ba390376df4696145b7056dce36cc7b3, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _LargeNoiseTex:
+        m_Texture: {fileID: 2800000, guid: 66e000edae559e444bd8d8e7627ac946, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _DetailDistortionStrength: 0.045
+    - _DetailFlowScale: 1.35
+    - _DetailFlowSpeed: 0.19
+    - _DistortionMultiplier: 1
+    - _EdgeEmissionStrength: 0.45
+    - _EdgeFlowInfluence: 0.55
+    - _EdgeStrength: 0.7
+    - _EdgeWidth: 1.3
+    - _EmissionStrength: 0.18
+    - _EnableExternalAlpha: 0
+    - _FlowSpeedMultiplier: 1
+    - _HighlightEmissionStrength: 0.68
+    - _HorizontalStretchVisual: 0
+    - _InternalWobbleAmount: 0.08
+    - _InternalWobbleSpeed: 0.18
+    - _LandingPulse: 0
+    - _LandingPulseProgress: 0
+    - _LargeDistortionStrength: 0.17
+    - _LargeFlowScale: 0.92
+    - _LargeFlowSpeed: 0.12
+    - _OverallAlpha: 0.88
+    - _PatternContrast: 1.3
+    - _PatternSoftness: 0.17
+    - _PatternThreshold: 0.53
+    - _PixelSize: 36
+    - _PixelationStrength: 0.58
+    - _SpriteDistortionStrength: 0.018
+    - _TimeOffset: 0
+    - _VerticalStretchVisual: 0
+    m_Colors:
+    - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _DeepColor: {r: 0.015, g: 0.1, b: 0.38, a: 1}
+    - _DetailFlowDirection: {r: -0.16, g: 0.31, b: 0, a: 0}
+    - _EdgeColor: {r: 0.45, g: 0.95, b: 1.15, a: 1}
+    - _FlowPull: {r: 0, g: 0, b: 0, a: 0}
+    - _HighlightColor: {r: 0.25, g: 0.9, b: 1.15, a: 1}
+    - _LargeFlowDirection: {r: 0.37, g: 0.18, b: 0, a: 0}
+    - _RendererColor: {r: 1, g: 1, b: 1, a: 1}
+    - _ShallowColor: {r: 0.12, g: 0.5, b: 0.88, a: 1}
+    - _SpriteUVRect: {r: 0, g: 0, b: 1, a: 1}
+    - _VisualStretch: {r: 0, g: 0, b: 0, a: 0}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1
