@@ -13,12 +13,20 @@ public class LeafBouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
     [SerializeField] private float maxAngleError = 18f;
     [SerializeField, Range(0f, 1f)] private float edgeSpeedMultiplier = 0.75f;
     [SerializeField, Range(0f, 1f)] private float sweetSpotWidth = 0.25f;
+    [SerializeField, Range(-1f, 1f)] private float sweetSpotOffset;
 
     [Header("Dive Height Power")]
     [SerializeField] private float minEffectiveDiveHeight = 1f;
     [SerializeField] private float maxEffectiveDiveHeight = 6f;
     [SerializeField] private float minBounceSpeed = 9f;
     [SerializeField] private float maxBounceSpeed = 18f;
+
+    [Header("Bounce Direction Strength")]
+    [SerializeField] private float verticalBounceMultiplier = 1.25f;
+    [SerializeField] private float horizontalBounceMultiplier = 1f;
+
+    [Header("Curved Launch")]
+    [SerializeField] private float horizontalBuildDuration = 0.45f;
 
     [Header("Collider")]
     [SerializeField] private Collider2D topSurfaceCollider;
@@ -35,7 +43,6 @@ public class LeafBouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
 
     private Vector3 visualRestLocalPosition;
     private Coroutine bounceRoutine;
-    private PlayerCharacter pendingBouncePlayer;
 
     private void Awake()
     {
@@ -65,15 +72,28 @@ public class LeafBouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
         if (player != null)
         {
             player.SuppressDiveLandingStunThisImpact();
-            pendingBouncePlayer = player;
         }
 
         float offset = GetImpactOffsetFromCenter(impactPoint);
         Vector2 bounceVelocity = CalculateBounceVelocity(offset, player);
-        bounceRoutine = StartCoroutine(BounceAfterCompression(player, instigatorBody, bounceVelocity));
+
+        if (player != null)
+        {
+            Vector2 initialVelocity = new Vector2(0f, bounceVelocity.y);
+            player.ApplyLeafDiveBounce(
+                initialVelocity,
+                bounceVelocity.x,
+                horizontalBuildDuration);
+        }
+        else if (instigatorBody != null)
+        {
+            instigatorBody.linearVelocity = bounceVelocity;
+        }
+
+        bounceRoutine = StartCoroutine(AnimateBounce());
     }
 
-    private IEnumerator BounceAfterCompression(PlayerCharacter player, Rigidbody2D instigatorBody, Vector2 bounceVelocity)
+    private IEnumerator AnimateBounce()
     {
         Vector3 compressedPosition = visualRestLocalPosition - transform.InverseTransformDirection(transform.up) * compressDepth;
         yield return MoveVisual(visualRestLocalPosition, compressedPosition, compressTime);
@@ -83,21 +103,7 @@ public class LeafBouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
             yield return new WaitForSeconds(releaseDelay);
         }
 
-        if (player != null)
-        {
-            player.ApplyDiveBounce(bounceVelocity);
-        }
-        else if (instigatorBody != null)
-        {
-            instigatorBody.linearVelocity = bounceVelocity;
-        }
-
         yield return MoveVisual(compressedPosition, visualRestLocalPosition, recoverTime);
-
-        if (pendingBouncePlayer == player)
-        {
-            pendingBouncePlayer = null;
-        }
 
         bounceRoutine = null;
     }
@@ -113,7 +119,10 @@ public class LeafBouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
             ? Mathf.InverseLerp(minEffectiveDiveHeight, maxEffectiveDiveHeight, player.LastDiveFallDistance)
             : 0f;
         float heightBasedSpeed = Mathf.Lerp(minBounceSpeed, maxBounceSpeed, heightPower);
-        return finalDirection * heightBasedSpeed * accuracySpeedMultiplier;
+        float finalSpeed = heightBasedSpeed * accuracySpeedMultiplier;
+        return new Vector2(
+            finalDirection.x * finalSpeed * horizontalBounceMultiplier,
+            finalDirection.y * finalSpeed * verticalBounceMultiplier);
     }
 
     private float ApplySweetSpot(float offset)
@@ -136,13 +145,15 @@ public class LeafBouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
         if (TryGetSurfaceLocalRange(out Transform surfaceTransform, out float centerX, out float halfWidth, out _))
         {
             Vector2 localPoint = surfaceTransform.InverseTransformPoint(impactPoint);
-            return Mathf.Clamp((localPoint.x - centerX) / Mathf.Max(0.0001f, halfWidth), -1f, 1f);
+            float normalizedPoint = (localPoint.x - centerX) / Mathf.Max(0.0001f, halfWidth);
+            return Mathf.Clamp(normalizedPoint - sweetSpotOffset, -1f, 1f);
         }
 
         float halfExtent = GetProjectedHalfExtentOnRight();
         float centerProjection = Vector2.Dot(topSurfaceCollider != null ? topSurfaceCollider.bounds.center : transform.position, transform.right);
         float impactProjection = Vector2.Dot(impactPoint, transform.right);
-        return Mathf.Clamp((impactProjection - centerProjection) / Mathf.Max(0.0001f, halfExtent), -1f, 1f);
+        float normalizedProjection = (impactProjection - centerProjection) / Mathf.Max(0.0001f, halfExtent);
+        return Mathf.Clamp(normalizedProjection - sweetSpotOffset, -1f, 1f);
     }
 
     private float GetProjectedHalfExtentOnRight()
@@ -282,10 +293,14 @@ public class LeafBouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
         maxAngleError = Mathf.Max(0f, maxAngleError);
         edgeSpeedMultiplier = Mathf.Clamp01(edgeSpeedMultiplier);
         sweetSpotWidth = Mathf.Clamp01(sweetSpotWidth);
+        sweetSpotOffset = Mathf.Clamp(sweetSpotOffset, -1f, 1f);
         minEffectiveDiveHeight = Mathf.Max(0f, minEffectiveDiveHeight);
         maxEffectiveDiveHeight = Mathf.Max(minEffectiveDiveHeight + 0.01f, maxEffectiveDiveHeight);
         minBounceSpeed = Mathf.Max(0f, minBounceSpeed);
         maxBounceSpeed = Mathf.Max(minBounceSpeed, maxBounceSpeed);
+        verticalBounceMultiplier = Mathf.Max(0f, verticalBounceMultiplier);
+        horizontalBounceMultiplier = Mathf.Max(0f, horizontalBounceMultiplier);
+        horizontalBuildDuration = Mathf.Max(0f, horizontalBuildDuration);
         compressDepth = Mathf.Max(0f, compressDepth);
         compressTime = Mathf.Max(0f, compressTime);
         releaseDelay = Mathf.Max(0f, releaseDelay);
@@ -326,13 +341,14 @@ public class LeafBouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
 
         Gizmos.matrix = box.transform.localToWorldMatrix;
 
-        Vector3 center = box.offset;
+        Vector3 surfaceCenter = box.offset;
+        Vector3 center = surfaceCenter + Vector3.right * (box.size.x * 0.5f * sweetSpotOffset);
         Vector3 fullSize = new Vector3(box.size.x, box.size.y, 0.02f);
         float sweetWidth = box.size.x * Mathf.Clamp01(sweetSpotWidth);
         Vector3 sweetSize = new Vector3(sweetWidth, Mathf.Max(box.size.y * 1.35f, 0.08f), 0.02f);
 
         Gizmos.color = FullWidthGizmoColor;
-        Gizmos.DrawWireCube(center, fullSize);
+        Gizmos.DrawWireCube(surfaceCenter, fullSize);
 
         Gizmos.color = SweetSpotFillGizmoColor;
         Gizmos.DrawCube(center, sweetSize);
@@ -365,10 +381,11 @@ public class LeafBouncePlatform2D : MonoBehaviour, IDiveImpactReceiver
         Vector3 left = new Vector3(minX, centerY, 0f);
         Vector3 right = new Vector3(maxX, centerY, 0f);
         float sweetHalfWidth = halfWidth * Mathf.Clamp01(sweetSpotWidth);
-        Vector3 sweetLeft = new Vector3(centerX - sweetHalfWidth, centerY, 0f);
-        Vector3 sweetRight = new Vector3(centerX + sweetHalfWidth, centerY, 0f);
+        float sweetCenterX = centerX + halfWidth * sweetSpotOffset;
+        Vector3 sweetLeft = new Vector3(sweetCenterX - sweetHalfWidth, centerY, 0f);
+        Vector3 sweetRight = new Vector3(sweetCenterX + sweetHalfWidth, centerY, 0f);
         float gizmoHeight = 0.18f;
-        Vector3 center = new Vector3(centerX, centerY, 0f);
+        Vector3 center = new Vector3(sweetCenterX, centerY, 0f);
 
         Gizmos.color = FullWidthGizmoColor;
         Gizmos.DrawLine(left, right);

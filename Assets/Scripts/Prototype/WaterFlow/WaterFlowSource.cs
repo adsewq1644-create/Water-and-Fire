@@ -1,18 +1,20 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum WaterSurfaceSlopeFlowMode
-{
-    KeepCurrentDirection,
-    PreferDownhill,
-    ForceDownhill
-}
-
 [ExecuteAlways]
 [DisallowMultipleComponent]
 public class WaterFlowSource : MonoBehaviour
 {
     private const string GeneratedRootName = "__WaterBlobGenerated";
+    private const float SurfaceDirectionEpsilon = 0.0001f;
+
+    private enum BoxContactFace
+    {
+        Top,
+        Bottom,
+        Left,
+        Right
+    }
 
     [Header("Blob Spawn")]
     [SerializeField] private bool spawnBlobsInPlayMode = true;
@@ -38,12 +40,10 @@ public class WaterFlowSource : MonoBehaviour
     [SerializeField] private float maxFallSpeed = 5.5f;
     [SerializeField] private float spreadSpeed = 1.45f;
     [SerializeField] private float fallDriftSpeed = 0.18f;
+    [SerializeField] private float maxFallDriftOffset = 0.12f;
     [SerializeField] private float horizontalAcceleration = 10f;
     [SerializeField] private float edgeDropVelocity = 1.2f;
-    [SerializeField] private WaterSurfaceSlopeFlowMode slopeFlowMode = WaterSurfaceSlopeFlowMode.PreferDownhill;
-    [SerializeField, Range(0f, 1f)] private float downhillNormalThreshold = 0.03f;
     [SerializeField] private bool splitOnFlatSurfaces = true;
-    [SerializeField, Range(0f, 1f)] private float flatSurfaceNormalThreshold = 0.08f;
     [SerializeField] private float splitSpawnOffset = 0.08f;
 
     [Header("Blob Visual")]
@@ -85,6 +85,7 @@ public class WaterFlowSource : MonoBehaviour
     public float MaxFallSpeed => maxFallSpeed;
     public float SpreadSpeed => spreadSpeed;
     public float FallDriftSpeed => fallDriftSpeed;
+    public float MaxFallDriftOffset => maxFallDriftOffset;
     public float HorizontalAcceleration => horizontalAcceleration;
     public float EdgeDropVelocity => edgeDropVelocity;
     public float VisualWobbleAmount => visualWobbleAmount;
@@ -93,7 +94,6 @@ public class WaterFlowSource : MonoBehaviour
     public float SurfaceStretch => surfaceStretch;
     public float BlobLifetime => blobLifetime;
     public float SurfaceLifetimeMultiplier => surfaceLifetimeMultiplier;
-    public WaterSurfaceSlopeFlowMode SlopeFlowMode => slopeFlowMode;
     public bool SplitOnFlatSurfaces => splitOnFlatSurfaces;
     public bool BlobIsHazard => blobIsHazard;
     public IReadOnlyList<WaterFlowBlob> ActiveBlobs => activeBlobs;
@@ -153,10 +153,9 @@ public class WaterFlowSource : MonoBehaviour
         maxFallSpeed = Mathf.Max(0.01f, maxFallSpeed);
         spreadSpeed = Mathf.Max(0f, spreadSpeed);
         fallDriftSpeed = Mathf.Max(0f, fallDriftSpeed);
+        maxFallDriftOffset = Mathf.Max(0f, maxFallDriftOffset);
         horizontalAcceleration = Mathf.Max(0.01f, horizontalAcceleration);
         edgeDropVelocity = Mathf.Max(0f, edgeDropVelocity);
-        downhillNormalThreshold = Mathf.Clamp01(downhillNormalThreshold);
-        flatSurfaceNormalThreshold = Mathf.Clamp01(flatSurfaceNormalThreshold);
         splitSpawnOffset = Mathf.Max(0f, splitSpawnOffset);
         blobSize = Mathf.Max(0.02f, blobSize);
         blobSizeRandom = Mathf.Max(0f, blobSizeRandom);
@@ -206,11 +205,12 @@ public class WaterFlowSource : MonoBehaviour
         blobObject.transform.SetParent(generatedRoot, true);
         blobObject.transform.position = position;
 
-        float randomSize = blobSize + Random.Range(-blobSizeRandom, blobSizeRandom);
-        randomSize = Mathf.Max(0.02f, randomSize);
+        float collisionSize = Mathf.Max(0.02f, blobSize);
+        float visualSize = blobSize + Random.Range(-blobSizeRandom, blobSizeRandom);
+        visualSize = Mathf.Max(0.02f, visualSize);
 
-        float hazardRadius = Mathf.Max(0.01f, randomSize * hazardRadiusScale);
-        float visualRadius = Mathf.Max(0.01f, randomSize * 0.56f);
+        float hazardRadius = Mathf.Max(0.01f, collisionSize * hazardRadiusScale);
+        float visualRadius = Mathf.Max(0.01f, visualSize * 0.56f);
 
         WaterFlowBlob blob = blobObject.AddComponent<WaterFlowBlob>();
         blob.Initialize(this, horizontalDirection, hazardRadius, visualRadius, initialAge, suppressNextFlatSplit);
@@ -272,19 +272,83 @@ public class WaterFlowSource : MonoBehaviour
         return flatSplitDirectionToggle;
     }
 
-    internal int GetDownhillDirection(Vector2 groundNormal)
+    internal int GetSurfaceFlowDirection(
+        Vector2 surfaceNormal,
+        Collider2D surfaceCollider,
+        Vector2 contactPoint)
     {
-        if (Mathf.Abs(groundNormal.x) < downhillNormalThreshold)
+        if (surfaceCollider is BoxCollider2D boxCollider)
+        {
+            BoxContactFace contactFace = GetBoxContactFace(boxCollider, contactPoint);
+            switch (contactFace)
+            {
+                case BoxContactFace.Left:
+                    return GetHorizontalDirection(-boxCollider.transform.right);
+
+                case BoxContactFace.Right:
+                    return GetHorizontalDirection(boxCollider.transform.right);
+
+                case BoxContactFace.Bottom:
+                    return GetHorizontalDirection(-boxCollider.transform.up);
+
+                default:
+                    return GetDownhillDirection(boxCollider.transform.right);
+            }
+        }
+
+        return GetHorizontalDirection(surfaceNormal);
+    }
+
+    internal bool IsFlatSurface(
+        Vector2 surfaceNormal,
+        Collider2D surfaceCollider,
+        Vector2 contactPoint)
+    {
+        if (surfaceCollider is BoxCollider2D boxCollider)
+        {
+            return GetBoxContactFace(boxCollider, contactPoint) == BoxContactFace.Top &&
+                   Mathf.Abs(boxCollider.transform.right.normalized.y) <= SurfaceDirectionEpsilon;
+        }
+
+        return surfaceNormal.y > 0f && Mathf.Abs(surfaceNormal.x) <= SurfaceDirectionEpsilon;
+    }
+
+    private static BoxContactFace GetBoxContactFace(BoxCollider2D boxCollider, Vector2 contactPoint)
+    {
+        Vector2 localPoint = boxCollider.transform.InverseTransformPoint(contactPoint);
+        localPoint -= boxCollider.offset;
+
+        Vector2 halfSize = boxCollider.size * 0.5f;
+        float normalizedX = Mathf.Abs(localPoint.x) / Mathf.Max(halfSize.x, SurfaceDirectionEpsilon);
+        float normalizedY = Mathf.Abs(localPoint.y) / Mathf.Max(halfSize.y, SurfaceDirectionEpsilon);
+
+        if (normalizedY >= normalizedX)
+        {
+            return localPoint.y >= 0f ? BoxContactFace.Top : BoxContactFace.Bottom;
+        }
+
+        return localPoint.x >= 0f ? BoxContactFace.Right : BoxContactFace.Left;
+    }
+
+    private static int GetDownhillDirection(Vector2 surfaceTangent)
+    {
+        if (Mathf.Abs(surfaceTangent.y) <= SurfaceDirectionEpsilon)
         {
             return 0;
         }
 
-        return groundNormal.x > 0f ? 1 : -1;
+        Vector2 downhill = surfaceTangent.y < 0f ? surfaceTangent : -surfaceTangent;
+        return GetHorizontalDirection(downhill);
     }
 
-    internal bool IsFlatSurface(Vector2 groundNormal)
+    private static int GetHorizontalDirection(Vector2 direction)
     {
-        return Mathf.Abs(groundNormal.x) <= flatSurfaceNormalThreshold;
+        if (Mathf.Abs(direction.x) <= SurfaceDirectionEpsilon)
+        {
+            return 0;
+        }
+
+        return direction.x > 0f ? 1 : -1;
     }
 
     internal bool TrySpawnSplitBlob(Vector2 position, int horizontalDirection, float inheritedAge)
@@ -1059,6 +1123,7 @@ public class WaterFlowBlob : MonoBehaviour
     private int horizontalDirection;
     private float age;
     private float phase;
+    private float fallLaneCenterX;
     private bool retiring;
     private bool flowingOnSurface;
     private bool suppressFlatSplitUntilFalling;
@@ -1082,6 +1147,7 @@ public class WaterFlowBlob : MonoBehaviour
         visualRadius = Mathf.Max(0.01f, visibleRadius);
         horizontalDirection = initialHorizontalDirection == 0 ? 1 : (int)Mathf.Sign(initialHorizontalDirection);
         velocity = new Vector2(horizontalDirection * owner.FallDriftSpeed, -owner.EdgeDropVelocity);
+        fallLaneCenterX = transform.position.x;
         age = Mathf.Max(0f, initialAge);
         phase = Random.Range(0f, Mathf.PI * 2f);
         suppressFlatSplitUntilFalling = suppressNextFlatSplit;
@@ -1141,10 +1207,36 @@ public class WaterFlowBlob : MonoBehaviour
         position = groundHit.centroid + Vector2.up * source.SurfaceClearance;
         velocity.y = 0f;
 
-        int direction = ChooseFlowDirection(position, radius, groundHit.normal);
-        TrySplitOnFlatSurface(position, radius, groundHit.normal, wasFlowingOnSurface, ref direction);
+        int surfaceDirection = source.GetSurfaceFlowDirection(
+            groundHit.normal,
+            groundHit.collider,
+            groundHit.point);
+        int direction = ChooseFlowDirection(
+            position,
+            radius,
+            groundHit.normal,
+            groundHit.collider,
+            groundHit.point);
+        TrySplitOnFlatSurface(
+            position,
+            radius,
+            groundHit.normal,
+            groundHit.collider,
+            groundHit.point,
+            wasFlowingOnSurface,
+            ref direction);
         if (direction == 0)
         {
+            if (surfaceDirection != 0)
+            {
+                ReleaseFromBlockedSurfaceEdge(
+                    ref position,
+                    radius,
+                    groundHit,
+                    surfaceDirection);
+                return;
+            }
+
             velocity.x = Mathf.MoveTowards(velocity.x, 0f, source.HorizontalAcceleration * deltaTime);
             return;
         }
@@ -1156,8 +1248,24 @@ public class WaterFlowBlob : MonoBehaviour
             source.HorizontalAcceleration * deltaTime);
 
         Vector2 nextPosition = position + Vector2.right * velocity.x * deltaTime;
-        if (source.TryCastSolid(position, radius, Vector2.right * direction, Mathf.Abs(velocity.x) * deltaTime + 0.01f, null, out _))
+        if (source.TryCastSolid(
+                position,
+                radius,
+                Vector2.right * direction,
+                Mathf.Abs(velocity.x) * deltaTime + 0.01f,
+                groundHit.collider,
+                out _))
         {
+            if (surfaceDirection != 0)
+            {
+                ReleaseFromBlockedSurfaceEdge(
+                    ref position,
+                    radius,
+                    groundHit,
+                    surfaceDirection);
+                return;
+            }
+
             horizontalDirection = -direction;
             velocity.x = 0f;
             return;
@@ -1173,23 +1281,47 @@ public class WaterFlowBlob : MonoBehaviour
         velocity.y = -source.EdgeDropVelocity;
     }
 
+    private void ReleaseFromBlockedSurfaceEdge(
+        ref Vector2 position,
+        float radius,
+        RaycastHit2D surfaceHit,
+        int outwardDirection)
+    {
+        float horizontalClearance =
+            radius + source.LedgeProbeDistance + source.SurfaceClearance + 0.01f;
+        float downwardClearance = Mathf.Max(source.SurfaceClearance + 0.01f, radius * 0.15f);
+
+        position = surfaceHit.point +
+                   Vector2.right * outwardDirection * horizontalClearance +
+                   Vector2.down * downwardClearance;
+        horizontalDirection = outwardDirection;
+        velocity.x = outwardDirection * source.FallDriftSpeed;
+        velocity.y = -source.EdgeDropVelocity;
+        fallLaneCenterX = position.x;
+        flowingOnSurface = false;
+        suppressFlatSplitUntilFalling = true;
+    }
+
     private void TrySplitOnFlatSurface(
         Vector2 position,
         float radius,
         Vector2 groundNormal,
+        Collider2D groundCollider,
+        Vector2 contactPoint,
         bool wasFlowingOnSurface,
         ref int direction)
     {
         if (!source.SplitOnFlatSurfaces ||
             wasFlowingOnSurface ||
             suppressFlatSplitUntilFalling ||
-            !source.IsFlatSurface(groundNormal))
+            source.GetSurfaceFlowDirection(groundNormal, groundCollider, contactPoint) != 0 ||
+            !source.IsFlatSurface(groundNormal, groundCollider, contactPoint))
         {
             return;
         }
 
-        bool canLeft = source.CanMoveSide(position, radius, -1, null);
-        bool canRight = source.CanMoveSide(position, radius, 1, null);
+        bool canLeft = source.CanMoveSide(position, radius, -1, groundCollider);
+        bool canRight = source.CanMoveSide(position, radius, 1, groundCollider);
         if (!canLeft || !canRight)
         {
             return;
@@ -1200,27 +1332,28 @@ public class WaterFlowBlob : MonoBehaviour
         source.TrySpawnSplitBlob(position, -primaryDirection, age);
     }
 
-    private int ChooseFlowDirection(Vector2 position, float radius, Vector2 groundNormal)
+    private int ChooseFlowDirection(
+        Vector2 position,
+        float radius,
+        Vector2 groundNormal,
+        Collider2D groundCollider,
+        Vector2 contactPoint)
     {
         int preferred = horizontalDirection == 0 ? source.RandomHorizontalDirection() : horizontalDirection;
-        int downhillDirection = source.GetDownhillDirection(groundNormal);
+        int surfaceDirection = source.GetSurfaceFlowDirection(groundNormal, groundCollider, contactPoint);
 
-        if (downhillDirection != 0 && source.SlopeFlowMode != WaterSurfaceSlopeFlowMode.KeepCurrentDirection)
+        if (surfaceDirection != 0)
         {
-            bool canDownhill = source.CanMoveSide(position, radius, downhillDirection, null);
-            if (canDownhill)
+            if (source.CanMoveSide(position, radius, surfaceDirection, groundCollider))
             {
-                return downhillDirection;
+                return surfaceDirection;
             }
 
-            if (source.SlopeFlowMode == WaterSurfaceSlopeFlowMode.ForceDownhill)
-            {
-                return 0;
-            }
+            return 0;
         }
 
-        bool canPreferred = source.CanMoveSide(position, radius, preferred, null);
-        bool canOther = source.CanMoveSide(position, radius, -preferred, null);
+        bool canPreferred = source.CanMoveSide(position, radius, preferred, groundCollider);
+        bool canOther = source.CanMoveSide(position, radius, -preferred, groundCollider);
 
         if (canPreferred && canOther && !source.HasGroundAhead(position, radius, preferred, null))
         {
@@ -1242,13 +1375,41 @@ public class WaterFlowBlob : MonoBehaviour
 
     private void Fall(ref Vector2 position, float radius, float deltaTime)
     {
+        bool justLeftSurface = flowingOnSurface;
         flowingOnSurface = false;
         suppressFlatSplitUntilFalling = false;
+        if (justLeftSurface)
+        {
+            fallLaneCenterX = position.x;
+        }
+
         velocity.y = Mathf.Max(velocity.y - source.Gravity * deltaTime, -source.MaxFallSpeed);
-        velocity.x = Mathf.MoveTowards(
-            velocity.x,
-            horizontalDirection * source.FallDriftSpeed,
-            source.HorizontalAcceleration * deltaTime);
+
+        float maxDriftOffset = source.MaxFallDriftOffset;
+        float driftFromLane = position.x - fallLaneCenterX;
+        if (maxDriftOffset <= 0f)
+        {
+            velocity.x = Mathf.MoveTowards(
+                velocity.x,
+                0f,
+                source.HorizontalAcceleration * deltaTime);
+        }
+        else
+        {
+            if (driftFromLane >= maxDriftOffset)
+            {
+                horizontalDirection = -1;
+            }
+            else if (driftFromLane <= -maxDriftOffset)
+            {
+                horizontalDirection = 1;
+            }
+
+            velocity.x = Mathf.MoveTowards(
+                velocity.x,
+                horizontalDirection * source.FallDriftSpeed,
+                source.HorizontalAcceleration * deltaTime);
+        }
 
         Vector2 horizontalDelta = new Vector2(velocity.x * deltaTime, 0f);
         if (Mathf.Abs(horizontalDelta.x) > 0f &&
@@ -1260,6 +1421,13 @@ public class WaterFlowBlob : MonoBehaviour
         }
 
         position += horizontalDelta;
+        if (maxDriftOffset > 0f)
+        {
+            position.x = Mathf.Clamp(
+                position.x,
+                fallLaneCenterX - maxDriftOffset,
+                fallLaneCenterX + maxDriftOffset);
+        }
 
         float downwardDistance = Mathf.Max(0f, -velocity.y * deltaTime);
         if (downwardDistance > 0f &&

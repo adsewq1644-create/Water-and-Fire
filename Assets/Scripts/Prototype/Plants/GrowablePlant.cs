@@ -291,6 +291,11 @@ public class GrowablePlant : MonoBehaviour
         Vector3 startPosition = visualRenderer.transform.localPosition;
         Vector3 targetPosition = new Vector3(target.visualOffset.x, target.visualOffset.y, 0f);
         Color startColor = visualRenderer.color;
+        Vector2 startColliderSize = solidCollider.size;
+        Vector2 startColliderOffset = solidCollider.offset;
+        Vector2 startHitboxSize = elementHitbox.size;
+        Vector2 startHitboxOffset = elementHitbox.offset;
+        bool targetHasCollision = target.collisionRole != PlantCollisionRole.PassThrough;
         Color reactionColor = sourceElement == ElementType.Water
             ? new Color(0.35f, 0.85f, 1f, 1f)
             : new Color(1f, 0.38f, 0.08f, 1f);
@@ -305,8 +310,10 @@ public class GrowablePlant : MonoBehaviour
             && growthEffect.BeginGrowth();
         float duration = Mathf.Max(0.01f, GetTransitionDuration(sourceElement));
 
-        solidCollider.enabled = false;
-        ApplyHitbox(target);
+        solidCollider.isTrigger = false;
+        solidCollider.enabled = solidCollider.enabled || targetHasCollision;
+        elementHitbox.isTrigger = true;
+        elementHitbox.enabled = true;
 
         float elapsed = 0f;
         while (elapsed < duration)
@@ -325,6 +332,11 @@ public class GrowablePlant : MonoBehaviour
             visualRenderer.transform.localPosition = Vector3.LerpUnclamped(startPosition, targetPosition, curved);
             Color baseColor = Color.LerpUnclamped(startColor, target.color, curved);
             visualRenderer.color = Color.Lerp(baseColor, reactionColor, Mathf.Sin(normalized * Mathf.PI) * 0.35f);
+
+            solidCollider.size = Vector2.LerpUnclamped(startColliderSize, target.colliderSize, curved);
+            solidCollider.offset = Vector2.LerpUnclamped(startColliderOffset, target.colliderOffset, curved);
+            elementHitbox.size = Vector2.LerpUnclamped(startHitboxSize, target.hitboxSize, curved);
+            elementHitbox.offset = Vector2.LerpUnclamped(startHitboxOffset, target.hitboxOffset, curved);
             yield return null;
         }
 

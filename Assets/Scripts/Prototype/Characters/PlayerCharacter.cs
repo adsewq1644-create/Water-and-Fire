@@ -133,6 +133,12 @@ public class PlayerCharacter : MonoBehaviour
     private float bouncePlatformGroundIgnoreTimer;
     private float downSlamBounceLockTimer;
     private float lastDownSlamBounceLockDuration;
+    private bool leafBounceCurveActive;
+    private float leafBounceCurveTimer;
+    private float leafBounceCurveDuration;
+    private float leafBounceStartVelocityX;
+    private float leafBounceTargetVelocityX;
+    private bool leafBounceAirControlLocked;
     private RaycastHit2D lastGroundHit;
     private float slipperyExitCarryTimer;
     private Vector2 slipperyExitCarryVelocity;
@@ -147,6 +153,7 @@ public class PlayerCharacter : MonoBehaviour
     private int aimVisualLayer;
     private readonly RaycastHit2D[] groundHits = new RaycastHit2D[6];
     private readonly RaycastHit2D[] sideHits = new RaycastHit2D[6];
+    private readonly RaycastHit2D[] projectileSpawnHits = new RaycastHit2D[8];
     private static PhysicsMaterial2D frictionlessMaterial;
 
     public string PlayerId => playerId;
@@ -195,6 +202,8 @@ public class PlayerCharacter : MonoBehaviour
 
     public void ApplyDiveBounce(Vector2 velocity)
     {
+        leafBounceCurveActive = false;
+        leafBounceAirControlLocked = false;
         isChargingJump = false;
         stationaryJumpCharge = false;
         jumpChargeTimer = 0f;
@@ -214,6 +223,27 @@ public class PlayerCharacter : MonoBehaviour
         if (body != null)
         {
             body.linearVelocity = velocity;
+        }
+    }
+
+    public void ApplyLeafDiveBounce(
+        Vector2 initialVelocity,
+        float targetHorizontalVelocity,
+        float horizontalBuildDuration)
+    {
+        ApplyDiveBounce(initialVelocity);
+
+        leafBounceStartVelocityX = initialVelocity.x;
+        leafBounceTargetVelocityX = targetHorizontalVelocity;
+        leafBounceCurveDuration = Mathf.Max(0f, horizontalBuildDuration);
+        leafBounceCurveTimer = 0f;
+        leafBounceAirControlLocked = true;
+        leafBounceCurveActive = leafBounceCurveDuration > 0f &&
+            !Mathf.Approximately(leafBounceStartVelocityX, leafBounceTargetVelocityX);
+
+        if (!leafBounceCurveActive && body != null)
+        {
+            body.linearVelocity = new Vector2(leafBounceTargetVelocityX, body.linearVelocity.y);
         }
     }
 
@@ -493,6 +523,35 @@ public class PlayerCharacter : MonoBehaviour
         HandleHorizontalMovement();
         ApplyHeldToolMovementModifiers();
         UpdateSlipperyExitCarryTimer();
+        UpdateLeafBounceCurve();
+    }
+
+    private void UpdateLeafBounceCurve()
+    {
+        if (!leafBounceCurveActive || body == null)
+        {
+            return;
+        }
+
+        float direction = Mathf.Sign(leafBounceTargetVelocityX);
+        if (grounded || isDiving || (!Mathf.Approximately(direction, 0f) && IsSideBlocked(direction)))
+        {
+            leafBounceCurveActive = false;
+            return;
+        }
+
+        leafBounceCurveTimer += Time.fixedDeltaTime;
+        float normalizedTime = leafBounceCurveDuration <= 0f
+            ? 1f
+            : Mathf.Clamp01(leafBounceCurveTimer / leafBounceCurveDuration);
+        float curvedTime = Mathf.SmoothStep(0f, 1f, normalizedTime);
+        float velocityX = Mathf.Lerp(leafBounceStartVelocityX, leafBounceTargetVelocityX, curvedTime);
+        body.linearVelocity = new Vector2(velocityX, body.linearVelocity.y);
+
+        if (normalizedTime >= 1f)
+        {
+            leafBounceCurveActive = false;
+        }
     }
 
     private bool CanReceiveInput()
@@ -569,6 +628,11 @@ public class PlayerCharacter : MonoBehaviour
             float acceleration = Mathf.Approximately(move, 0f) ? groundDeceleration : groundAcceleration;
             float nextX = Mathf.MoveTowards(currentX, targetX, acceleration * Time.fixedDeltaTime);
             body.linearVelocity = new Vector2(nextX, body.linearVelocity.y);
+            return;
+        }
+
+        if (leafBounceAirControlLocked)
+        {
             return;
         }
 
@@ -934,6 +998,7 @@ public class PlayerCharacter : MonoBehaviour
 
     private void StartDive()
     {
+        leafBounceCurveActive = false;
         isChargingJump = false;
         stationaryJumpCharge = false;
         jumpChargeTimer = 0f;
@@ -950,6 +1015,7 @@ public class PlayerCharacter : MonoBehaviour
 
     private void HandleLanding(RaycastHit2D groundHit)
     {
+        leafBounceAirControlLocked = false;
         bool landedFromDive = isDiving;
         if (landedFromDive)
         {
@@ -1230,7 +1296,7 @@ public class PlayerCharacter : MonoBehaviour
         Vector2 direction = previewVelocity.sqrMagnitude > 0f ? previewVelocity.normalized : Vector2.right;
         var projectileObject = new GameObject(playerId + "_" + element + "Projectile");
         projectileObject.layer = gameObject.layer;
-        projectileObject.transform.position = (Vector2)transform.position + direction * projectileSpawnOffset;
+        projectileObject.transform.position = GetSafeProjectileSpawnPosition(direction);
 
         var visualObject = new GameObject("Visual");
         visualObject.transform.SetParent(projectileObject.transform, false);
@@ -1260,7 +1326,7 @@ public class PlayerCharacter : MonoBehaviour
 
         float force = Mathf.Clamp(dragVector.magnitude * dragForceScale, projectileMinForce, projectileMaxForce);
         Vector2 initialVelocity = GetPreviewProjectileVelocity(dragVector);
-        Vector2 start = (Vector2)transform.position + initialVelocity.normalized * projectileSpawnOffset;
+        Vector2 start = GetSafeProjectileSpawnPosition(initialVelocity.normalized);
         Vector2 gravity = Physics2D.gravity;
 
         SetAimVisualsVisible(true);
@@ -1283,6 +1349,42 @@ public class PlayerCharacter : MonoBehaviour
         }
 
         return velocity;
+    }
+
+    private Vector2 GetSafeProjectileSpawnPosition(Vector2 direction)
+    {
+        Vector2 origin = transform.position;
+        float spawnDistance = Mathf.Max(0f, projectileSpawnOffset);
+        if (spawnDistance <= 0f || direction.sqrMagnitude <= 0f)
+        {
+            return origin;
+        }
+
+        direction.Normalize();
+        ContactFilter2D filter = new ContactFilter2D();
+        filter.SetLayerMask(groundMask);
+        filter.useTriggers = false;
+
+        float radius = Mathf.Max(0.01f, projectileColliderRadius);
+        int hitCount = Physics2D.CircleCast(origin, radius, direction, filter, projectileSpawnHits, spawnDistance);
+        for (int i = 0; i < hitCount; i++)
+        {
+            Collider2D hitCollider = projectileSpawnHits[i].collider;
+            if (hitCollider == null || hitCollider == bodyCollider)
+            {
+                continue;
+            }
+
+            PlayerCharacter hitPlayer = hitCollider.GetComponentInParent<PlayerCharacter>();
+            if (hitPlayer == this)
+            {
+                continue;
+            }
+
+            spawnDistance = Mathf.Min(spawnDistance, Mathf.Max(0f, projectileSpawnHits[i].distance - 0.01f));
+        }
+
+        return origin + direction * spawnDistance;
     }
 
     private void UpdatePullLine(Vector2 fireDirection, float force)
@@ -1409,6 +1511,8 @@ public class PlayerCharacter : MonoBehaviour
 
     private void ResetJumpActionState()
     {
+        leafBounceCurveActive = false;
+        leafBounceAirControlLocked = false;
         isChargingJump = false;
         stationaryJumpCharge = false;
         jumpChargeTimer = 0f;

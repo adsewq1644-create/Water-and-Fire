@@ -395,6 +395,9 @@ MonoBehaviour:
   chargeCancelKey: 115
   interactKey: 101
   fireMouseButton: 0
+  enableFallRescueInput: 1
+  rescueRequestKey: 102
+  stableGroundTag: SafeGround
   moveSpeed: 6
   airControlMultiplier: 0.18
   groundAcceleration: 100
@@ -412,6 +415,9 @@ MonoBehaviour:
   maxJumpPower: 14.25
   horizontalJumpPower: 5.5
   minHorizontalChargeMultiplier: 0.3
+  chargeMoveSpeedMultiplier: 0.35
+  jumpMotionSpeedMultiplier: 1.25
+  preserveJumpArcWhileReducingAirTime: 1
   fullChargeThreshold: 0.95
   fullChargeGravityMultiplier: 0.55
   fullChargeAirSlowMultiplier: 1
@@ -1545,6 +1551,9 @@ MonoBehaviour:
   chargeCancelKey: 115
   interactKey: 101
   fireMouseButton: 0
+  enableFallRescueInput: 1
+  rescueRequestKey: 102
+  stableGroundTag: SafeGround
   moveSpeed: 6
   airControlMultiplier: 0.18
   groundAcceleration: 100
@@ -1562,6 +1571,9 @@ MonoBehaviour:
   maxJumpPower: 14.5
   horizontalJumpPower: 6
   minHorizontalChargeMultiplier: 0.45
+  chargeMoveSpeedMultiplier: 0.35
+  jumpMotionSpeedMultiplier: 1.25
+  preserveJumpArcWhileReducingAirTime: 1
   fullChargeThreshold: 0.95
   fullChargeGravityMultiplier: 0.55
   fullChargeAirSlowMultiplier: 1
@@ -1822,8 +1834,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9ca16988395d2ed4fa05ef4cec4bf51a, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   targetRenderer: {fileID: 1939229226}
   body: {fileID: 1939229225}
   playerCharacter: {fileID: 1939229223}
@@ -1929,6 +1941,63 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!1001 &7241514662037647275
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 1940497148118472006, guid: 70e37c464c07c904594347782bdffa7c, type: 3}
+      propertyPath: m_Name
+      value: LeafBouncePlatform
+      objectReference: {fileID: 0}
+    - target: {fileID: 2096545364263677145, guid: 70e37c464c07c904594347782bdffa7c, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -4.088
+      objectReference: {fileID: 0}
+    - target: {fileID: 2096545364263677145, guid: 70e37c464c07c904594347782bdffa7c, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.328
+      objectReference: {fileID: 0}
+    - target: {fileID: 2096545364263677145, guid: 70e37c464c07c904594347782bdffa7c, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2096545364263677145, guid: 70e37c464c07c904594347782bdffa7c, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9848078
+      objectReference: {fileID: 0}
+    - target: {fileID: 2096545364263677145, guid: 70e37c464c07c904594347782bdffa7c, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2096545364263677145, guid: 70e37c464c07c904594347782bdffa7c, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2096545364263677145, guid: 70e37c464c07c904594347782bdffa7c, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.17364818
+      objectReference: {fileID: 0}
+    - target: {fileID: 2096545364263677145, guid: 70e37c464c07c904594347782bdffa7c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2096545364263677145, guid: 70e37c464c07c904594347782bdffa7c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2096545364263677145, guid: 70e37c464c07c904594347782bdffa7c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: -20
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 70e37c464c07c904594347782bdffa7c, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -1939,3 +2008,4 @@ SceneRoots:
   - {fileID: 151507428}
   - {fileID: 1891090274}
   - {fileID: 1521859929}
+  - {fileID: 7241514662037647275}
