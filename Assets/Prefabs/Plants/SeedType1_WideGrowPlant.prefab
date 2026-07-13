@@ -365,7 +365,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 34c7a7a5dca243df948f82fdd331993a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  growthDuration: 0.65
+  growthDuration: 0.45
   coreColor: {r: 0.12, g: 1.25, b: 0.2, a: 1}
   growthColor: {r: 0.025, g: 0.72, b: 0.08, a: 1}
   edgeColor: {r: 0.008, g: 0.22, b: 0.025, a: 1}
