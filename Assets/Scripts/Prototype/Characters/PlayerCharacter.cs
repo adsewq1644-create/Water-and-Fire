@@ -285,6 +285,15 @@ public class PlayerCharacter : MonoBehaviour
         hasLastSafePosition = true;
     }
 
+    public void ReturnToStartForTesting()
+    {
+        dragging = false;
+        SetAimVisualsVisible(false);
+        HeldTool = HeldToolType.None;
+        ReviveToAlive();
+        TeleportForFallRescue(spawnPosition);
+    }
+
     public void TeleportForFallRescue(Vector3 position, bool rememberAsSafePosition = true)
     {
         transform.position = position;

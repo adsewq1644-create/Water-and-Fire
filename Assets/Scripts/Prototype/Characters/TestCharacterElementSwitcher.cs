@@ -6,6 +6,7 @@ public class TestCharacterElementSwitcher : MonoBehaviour
     [Header("Target")]
     [SerializeField] private PlayerCharacter target;
     [SerializeField] private KeyCode switchKey = KeyCode.R;
+    [SerializeField] private KeyCode returnToStartKey = KeyCode.Q;
     [SerializeField] private bool updatePlayerId = true;
     [SerializeField] private string waterPlayerId = "TestPlayer_Water";
     [SerializeField] private string firePlayerId = "TestPlayer_Fire";
@@ -44,12 +45,20 @@ public class TestCharacterElementSwitcher : MonoBehaviour
     private void Update()
     {
         ResolveTarget();
-        if (target == null || !Input.GetKeyDown(switchKey))
+        if (target == null)
         {
             return;
         }
 
-        ToggleElement();
+        if (returnToStartKey != KeyCode.None && Input.GetKeyDown(returnToStartKey))
+        {
+            target.ReturnToStartForTesting();
+        }
+
+        if (switchKey != KeyCode.None && Input.GetKeyDown(switchKey))
+        {
+            ToggleElement();
+        }
     }
 
     public void ToggleElement()

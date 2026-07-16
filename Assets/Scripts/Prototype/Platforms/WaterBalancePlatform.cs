@@ -20,6 +20,7 @@ public class WaterBalancePlatform : MonoBehaviour
 
     [Header("Water Detection")]
     [SerializeField] private LayerMask waterLayerMask = 0;
+    [SerializeField] private float wetActivationTime = 0.08f;
     [SerializeField] private float wetHoldTime = 0.35f;
     [SerializeField] private bool sensorsFollowPlatforms = true;
 
@@ -47,11 +48,17 @@ public class WaterBalancePlatform : MonoBehaviour
     private Vector2 previousRightPosition;
     private Vector2 leftSensorOffsetFromPlatform;
     private Vector2 rightSensorOffsetFromPlatform;
+    private float leftWetDetectedSince = -1f;
+    private float rightWetDetectedSince = -1f;
     private float leftWetUntilTime;
     private float rightWetUntilTime;
+    private bool leftStableWet;
+    private bool rightStableWet;
 
     public bool LeftWet { get; private set; }
     public bool RightWet { get; private set; }
+    public bool RawLeftWet { get; private set; }
+    public bool RawRightWet { get; private set; }
 
     private void Reset()
     {
@@ -80,6 +87,7 @@ public class WaterBalancePlatform : MonoBehaviour
         CacheReferences();
         ConfigurePlatformBody(leftBody);
         ConfigurePlatformBody(rightBody);
+        ResetWetTracking();
 
         if (Application.isPlaying)
         {
@@ -94,6 +102,7 @@ public class WaterBalancePlatform : MonoBehaviour
         downMoveSpeed = Mathf.Max(0f, downMoveSpeed);
         upMoveSpeed = Mathf.Max(0f, upMoveSpeed);
         neutralMoveSpeed = Mathf.Max(0f, neutralMoveSpeed);
+        wetActivationTime = Mathf.Max(0f, wetActivationTime);
         wetHoldTime = Mathf.Max(0f, wetHoldTime);
         riderProbeHeight = Mathf.Max(0.01f, riderProbeHeight);
         riderProbeExtraWidth = Mathf.Max(0f, riderProbeExtraWidth);
@@ -109,8 +118,20 @@ public class WaterBalancePlatform : MonoBehaviour
 
         SyncSensorsToPlatforms();
 
-        LeftWet = GetStableWetState(leftWaterSensor, ref leftWetUntilTime);
-        RightWet = GetStableWetState(rightWaterSensor, ref rightWetUntilTime);
+        LeftWet = GetStableWetState(
+            leftWaterSensor,
+            ref leftWetDetectedSince,
+            ref leftWetUntilTime,
+            ref leftStableWet,
+            out bool rawLeftWet);
+        RightWet = GetStableWetState(
+            rightWaterSensor,
+            ref rightWetDetectedSince,
+            ref rightWetUntilTime,
+            ref rightStableWet,
+            out bool rawRightWet);
+        RawLeftWet = rawLeftWet;
+        RawRightWet = rawRightWet;
 
         Vector2 leftTarget = leftNeutralPosition;
         Vector2 rightTarget = rightNeutralPosition;
@@ -263,15 +284,53 @@ public class WaterBalancePlatform : MonoBehaviour
         return false;
     }
 
-    private bool GetStableWetState(Collider2D sensor, ref float wetUntilTime)
+    private bool GetStableWetState(
+        Collider2D sensor,
+        ref float wetDetectedSince,
+        ref float wetUntilTime,
+        ref bool stableWet,
+        out bool rawWet)
     {
-        if (IsSensorWet(sensor))
+        rawWet = IsSensorWet(sensor);
+        float now = Time.time;
+
+        if (rawWet)
         {
-            wetUntilTime = Time.time + wetHoldTime;
-            return true;
+            if (wetDetectedSince < 0f)
+            {
+                wetDetectedSince = now;
+            }
+
+            if (stableWet || now - wetDetectedSince >= wetActivationTime)
+            {
+                stableWet = true;
+                wetUntilTime = now + wetHoldTime;
+            }
+        }
+        else
+        {
+            wetDetectedSince = -1f;
+            if (stableWet && now > wetUntilTime)
+            {
+                stableWet = false;
+            }
         }
 
-        return Time.time <= wetUntilTime;
+        return stableWet;
+    }
+
+    private void ResetWetTracking()
+    {
+        leftWetDetectedSince = -1f;
+        rightWetDetectedSince = -1f;
+        leftWetUntilTime = 0f;
+        rightWetUntilTime = 0f;
+        leftStableWet = false;
+        rightStableWet = false;
+        LeftWet = false;
+        RightWet = false;
+        RawLeftWet = false;
+        RawRightWet = false;
     }
 
     private bool IsWaterCollider(Collider2D hit)

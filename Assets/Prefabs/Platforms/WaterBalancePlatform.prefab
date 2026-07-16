@@ -59,6 +59,7 @@ MonoBehaviour:
   waterLayerMask:
     serializedVersion: 2
     m_Bits: 0
+  wetActivationTime: 0.08
   wetHoldTime: 0.35
   sensorsFollowPlatforms: 1
   carryRiders: 1
