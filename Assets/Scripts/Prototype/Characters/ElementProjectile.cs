@@ -44,6 +44,14 @@ public class ElementProjectile : MonoBehaviour
             return;
         }
 
+        var darkBat = other.GetComponentInParent<DarkBat2D>();
+        if (darkBat != null)
+        {
+            darkBat.HitByProjectile(element);
+            Destroy(gameObject);
+            return;
+        }
+
         var plant = other.GetComponentInParent<GrowablePlant>();
         if (plant != null)
         {

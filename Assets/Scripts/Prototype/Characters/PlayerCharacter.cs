@@ -145,6 +145,7 @@ public class PlayerCharacter : MonoBehaviour
     private float nextFireTime;
     private bool dragging;
     private bool externalInputLocked;
+    private float externalKnockbackInputLockTimer;
     private Vector2 dragStartScreen;
     private float originalGravityScale;
     private bool originalTrigger;
@@ -224,6 +225,37 @@ public class PlayerCharacter : MonoBehaviour
         {
             body.linearVelocity = velocity;
         }
+    }
+
+    public void ApplyExternalKnockback(Vector2 velocity, float inputLockDuration)
+    {
+        if (!IsAliveLike || body == null)
+        {
+            return;
+        }
+
+        leafBounceCurveActive = false;
+        leafBounceAirControlLocked = false;
+        isChargingJump = false;
+        stationaryJumpCharge = false;
+        jumpChargeTimer = 0f;
+        isDiving = false;
+        diveUsed = false;
+        fullChargeJumpActive = false;
+        suppressDiveLandingStunThisImpact = false;
+        dragging = false;
+        SetAimVisualsVisible(false);
+        RestoreDefaultGravity();
+        diveLandingStunTimer = 0f;
+        grounded = false;
+        lastGroundHit = default;
+        coyoteTimer = 0f;
+        bouncePlatformGroundIgnoreTimer = Mathf.Max(bouncePlatformGroundIgnoreTimer, BouncePlatformGroundIgnoreTime);
+        ClearDownSlamBounceLock();
+        jumpConsumedUntilLanding = true;
+        jumpInputReleasedAfterLaunch = false;
+        externalKnockbackInputLockTimer = Mathf.Max(externalKnockbackInputLockTimer, Mathf.Max(0f, inputLockDuration));
+        body.linearVelocity = velocity;
     }
 
     public void ApplyLeafDiveBounce(
@@ -506,6 +538,11 @@ public class PlayerCharacter : MonoBehaviour
 
     private void Update()
     {
+        if (externalKnockbackInputLockTimer > 0f)
+        {
+            externalKnockbackInputLockTimer = Mathf.Max(0f, externalKnockbackInputLockTimer - Time.deltaTime);
+        }
+
         UpdateDownSlamBounceLock();
 
         if (!CanReceiveInput())
@@ -565,7 +602,8 @@ public class PlayerCharacter : MonoBehaviour
 
     private bool CanReceiveInput()
     {
-        return !externalInputLocked && (LifeState == PlayerLifeState.Alive || LifeState == PlayerLifeState.ReviveCaster);
+        return !externalInputLocked && externalKnockbackInputLockTimer <= 0f &&
+            (LifeState == PlayerLifeState.Alive || LifeState == PlayerLifeState.ReviveCaster);
     }
 
     private void ApplyPartnerCollisionIgnore()
@@ -1116,7 +1154,20 @@ public class PlayerCharacter : MonoBehaviour
                     continue;
                 }
 
-                if (behaviour is IShockwaveReceiver receiver)
+                if (behaviour is IShockwaveContextReceiver contextReceiver)
+                {
+                    var context = new ShockwaveContext(origin, this, shockwaveRadius, distance);
+                    if (shockwaveDelayByDistance && shockwaveRadius > 0f)
+                    {
+                        float delay = Mathf.Clamp01(distance / shockwaveRadius) * Mathf.Max(0f, shockwaveDuration);
+                        StartCoroutine(DispatchShockwaveAfterDelay(contextReceiver, context, delay));
+                    }
+                    else
+                    {
+                        contextReceiver.OnShockwaveReceived(context);
+                    }
+                }
+                else if (behaviour is IShockwaveReceiver receiver)
                 {
                     if (shockwaveDelayByDistance && shockwaveRadius > 0f)
                     {
@@ -1139,7 +1190,25 @@ public class PlayerCharacter : MonoBehaviour
             yield return new WaitForSeconds(delay);
         }
 
-        receiver.OnShockwave(origin, distance, gameObject);
+        MonoBehaviour receiverBehaviour = receiver as MonoBehaviour;
+        if (receiverBehaviour != null)
+        {
+            receiver.OnShockwave(origin, distance, gameObject);
+        }
+    }
+
+    private IEnumerator DispatchShockwaveAfterDelay(IShockwaveContextReceiver receiver, ShockwaveContext context, float delay)
+    {
+        if (delay > 0f)
+        {
+            yield return new WaitForSeconds(delay);
+        }
+
+        MonoBehaviour receiverBehaviour = receiver as MonoBehaviour;
+        if (receiverBehaviour != null)
+        {
+            receiver.OnShockwaveReceived(context);
+        }
     }
 
     private void CreateShockwaveVisual(Vector2 origin)
@@ -1532,6 +1601,7 @@ public class PlayerCharacter : MonoBehaviour
         jumpConsumedUntilLanding = false;
         jumpInputReleasedAfterLaunch = true;
         diveLandingStunTimer = 0f;
+        externalKnockbackInputLockTimer = 0f;
         ClearDownSlamBounceLock();
         coyoteTimer = 0f;
     }
