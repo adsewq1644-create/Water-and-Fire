@@ -108,7 +108,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 62318a47e48b4076a105c0af1285276f, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DarkBat2D
   visualRoot: {fileID: 200011}
   renderers:
@@ -124,6 +124,32 @@ MonoBehaviour:
   maxChaseDuration: 2.5
   returnCompleteDistance: 0.1
   postAttackDelay: 0.3
+  useCurledFlight: 1
+  curlRadius: 0.45
+  curlAngularSpeed: 7
+  guideAdvanceSpeed: 4
+  maxFlightSpeed: 8
+  curlStartDistance: 0.8
+  fullCurlDistance: 2.5
+  targetApproachRadiusMultiplier: 0.15
+  obstacleCurlMultiplier: 0.25
+  returnCurlMultiplier: 0.6
+  directionSmoothTime: 0.12
+  clockwiseCurl: 1
+  alternateInitialCurlDirection: 1
+  obstacleMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  obstacleProbeRadius: 0.25
+  obstacleLookAheadDistance: 1.5
+  obstacleSkin: 0.05
+  avoidanceTurnSpeed: 8
+  avoidanceDirectionLockDuration: 0.2
+  wallSlideMultiplier: 0.8
+  stuckCheckDuration: 0.6
+  stuckMovementThreshold: 0.08
+  avoidTriggers: 1
+  showAvoidanceGizmos: 1
   horizontalKnockback: 8
   verticalKnockback: 4
   inputLockDuration: 0.15
