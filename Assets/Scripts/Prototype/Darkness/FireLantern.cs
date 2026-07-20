@@ -63,7 +63,6 @@ public class FireLantern : MonoBehaviour
         if (fireLightSource != null)
         {
             fireLightSource.SetRadiusAndIntensity(lightRadius, lightIntensity);
-            fireLightSource.SetRevealEnabled(true);
             fireLightSource.SetLightEnabled(isOn);
         }
 

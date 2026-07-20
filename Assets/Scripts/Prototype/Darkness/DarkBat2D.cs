@@ -437,12 +437,12 @@ public sealed class DarkBat2D : MonoBehaviour, IShockwaveContextReceiver
         for (int i = 0; i < sources.Count; i++)
         {
             FireLightSource source = sources[i];
-            if (source == null || !source.CanRevealObjects || !source.IsLightActive)
+            if (source == null || !source.IsLightActive)
             {
                 continue;
             }
 
-            float radius = source.RevealRadius;
+            float radius = source.LightRadius;
             if (((Vector2)source.transform.position - position).sqrMagnitude <= radius * radius)
             {
                 return true;

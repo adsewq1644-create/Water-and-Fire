@@ -105,6 +105,7 @@ MonoBehaviour:
   verticalKnockback: 4
   inputLockDuration: 0.15
   contactHitCooldown: 0.75
+  visibilityCheckInterval: 0.1
   showDebugGizmos: 1
 --- !u!195 &3049136590197883782
 NavMeshAgent:
@@ -118,7 +119,7 @@ NavMeshAgent:
   m_Radius: 0.24
   m_Speed: 8
   m_Acceleration: 40
-  avoidancePriority: 78
+  avoidancePriority: 64
   m_AngularSpeed: 720
   m_StoppingDistance: 0
   m_AutoTraverseOffMeshLink: 1
@@ -158,6 +159,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 1024
   movingObstacleProbeDistance: 1.2
+  movingObstacleLookAheadTime: 0.3
   movingObstacleStopDistance: 0.34
   movingObstacleAvoidDistance: 0.75
   movingObstacleAvoidWeight: 0.8

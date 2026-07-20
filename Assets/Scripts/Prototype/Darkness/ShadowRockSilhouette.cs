@@ -5,10 +5,10 @@ public class ShadowRockSilhouette : MonoBehaviour
 {
     private const int MaxShaderRevealSources = 8;
     private static readonly int HiddenAlphaId = Shader.PropertyToID("_HiddenAlpha");
-    private static readonly int RevealedAlphaId = Shader.PropertyToID("_RevealedAlpha");
-    private static readonly int RevealSoftnessId = Shader.PropertyToID("_RevealSoftness");
-    private static readonly int RevealSourceCountId = Shader.PropertyToID("_RevealSourceCount");
-    private static readonly int RevealSourcesId = Shader.PropertyToID("_RevealSources");
+    private static readonly int RevealedAlphaId = Shader.PropertyToID("_VisibleAlpha");
+    private static readonly int RevealSoftnessId = Shader.PropertyToID("_VisionSoftness");
+    private static readonly int RevealSourceCountId = Shader.PropertyToID("_VisionSourceCount");
+    private static readonly int RevealSourcesId = Shader.PropertyToID("_VisionSources");
 
     [SerializeField] private SpriteRenderer silhouetteRenderer;
     [SerializeField, Range(0f, 1f)] private float fireSilhouetteAlpha = 0.28f;
@@ -146,7 +146,7 @@ public class ShadowRockSilhouette : MonoBehaviour
                 continue;
             }
 
-            float radius = fireVisibilityRadius > 0f ? fireVisibilityRadius : fireLight.RevealRadius;
+            float radius = fireVisibilityRadius > 0f ? fireVisibilityRadius : fireLight.LightRadius;
             sourceCount = TryAddRevealSource(sourceCount, fireLight.transform.position, radius, fireSilhouetteAlpha);
         }
 
@@ -199,7 +199,7 @@ public class ShadowRockSilhouette : MonoBehaviour
                 continue;
             }
 
-            float radius = fireVisibilityRadius > 0f ? fireVisibilityRadius : fireLight.RevealRadius;
+            float radius = fireVisibilityRadius > 0f ? fireVisibilityRadius : fireLight.LightRadius;
             targetAlpha = Mathf.Max(
                 targetAlpha,
                 CalculateAlphaContribution(fireLight.transform.position, radius, fireSilhouetteAlpha));
@@ -346,7 +346,7 @@ public class ShadowRockSilhouette : MonoBehaviour
 
         if (!partialRevealShaderSearched)
         {
-            cachedPartialRevealShader = Shader.Find("WaterAndFire/SpriteFireRevealMask");
+            cachedPartialRevealShader = Shader.Find("WaterAndFire/SpriteCharacterVisionMask");
             partialRevealShaderSearched = true;
         }
 

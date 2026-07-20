@@ -691,12 +691,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   pointLight2D: {fileID: 275496477}
-  revealRadius: 7
+  lightRadius: 7
   lightIntensity: 1
   lightColor: {r: 1, g: 0.55, b: 0.16, a: 1}
   flickerAmount: 0.08
   flickerSpeed: 8
-  canRevealObjects: 1
   debugGizmos: 1
 --- !u!114 &275496477
 MonoBehaviour:

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.Serialization;
 
 [DisallowMultipleComponent]
 public class FireLightSource : MonoBehaviour
@@ -8,20 +9,19 @@ public class FireLightSource : MonoBehaviour
     private static readonly List<FireLightSource> activeSources = new List<FireLightSource>();
 
     [SerializeField] private Light2D pointLight2D;
-    [SerializeField] private float revealRadius = 7f;
+    [FormerlySerializedAs("revealRadius")]
+    [SerializeField] private float lightRadius = 7f;
     [SerializeField] private float lightIntensity = 1f;
     [SerializeField] private Color lightColor = new Color(1f, 0.55f, 0.16f, 1f);
     [SerializeField] private float flickerAmount = 0.08f;
     [SerializeField] private float flickerSpeed = 8f;
-    [SerializeField] private bool canRevealObjects = true;
     [SerializeField] private bool debugGizmos = true;
 
     private bool lightActive = true;
     private float flickerSeed;
 
     public static IReadOnlyList<FireLightSource> ActiveSources => activeSources;
-    public float RevealRadius => revealRadius;
-    public bool CanRevealObjects => canRevealObjects;
+    public float LightRadius => lightRadius;
     public bool IsLightActive => isActiveAndEnabled && lightActive && pointLight2D != null && pointLight2D.enabled;
 
     private void Reset()
@@ -66,8 +66,8 @@ public class FireLightSource : MonoBehaviour
         pointLight2D.enabled = lightActive;
         pointLight2D.intensity = Mathf.Max(0f, lightIntensity + flicker);
         pointLight2D.color = lightColor;
-        pointLight2D.pointLightOuterRadius = Mathf.Max(0.01f, revealRadius);
-        pointLight2D.pointLightInnerRadius = Mathf.Max(0f, revealRadius * 0.18f);
+        pointLight2D.pointLightOuterRadius = Mathf.Max(0.01f, lightRadius);
+        pointLight2D.pointLightInnerRadius = Mathf.Max(0f, lightRadius * 0.18f);
     }
 
     public void SetLightEnabled(bool enabled)
@@ -81,14 +81,9 @@ public class FireLightSource : MonoBehaviour
 
     public void SetRadiusAndIntensity(float radius, float intensity)
     {
-        revealRadius = Mathf.Max(0.01f, radius);
+        lightRadius = Mathf.Max(0.01f, radius);
         lightIntensity = Mathf.Max(0f, intensity);
         ApplyLightSettings();
-    }
-
-    public void SetRevealEnabled(bool enabled)
-    {
-        canRevealObjects = enabled;
     }
 
     private void EnsureLight()
@@ -106,7 +101,7 @@ public class FireLightSource : MonoBehaviour
 
     private void ApplyLightSettings()
     {
-        DarknessLightUtility.ConfigurePointLight(pointLight2D, revealRadius, lightIntensity, lightColor);
+        DarknessLightUtility.ConfigurePointLight(pointLight2D, lightRadius, lightIntensity, lightColor);
         if (pointLight2D != null)
         {
             pointLight2D.enabled = lightActive;
@@ -115,7 +110,7 @@ public class FireLightSource : MonoBehaviour
 
     private void OnValidate()
     {
-        revealRadius = Mathf.Max(0.01f, revealRadius);
+        lightRadius = Mathf.Max(0.01f, lightRadius);
         lightIntensity = Mathf.Max(0f, lightIntensity);
         flickerAmount = Mathf.Max(0f, flickerAmount);
         flickerSpeed = Mathf.Max(0f, flickerSpeed);
@@ -136,6 +131,6 @@ public class FireLightSource : MonoBehaviour
         }
 
         Gizmos.color = new Color(1f, 0.45f, 0.08f, 0.85f);
-        Gizmos.DrawWireSphere(transform.position, revealRadius);
+        Gizmos.DrawWireSphere(transform.position, lightRadius);
     }
 }

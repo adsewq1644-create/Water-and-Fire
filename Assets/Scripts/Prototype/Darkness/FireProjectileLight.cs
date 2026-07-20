@@ -1,12 +1,14 @@
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.Serialization;
 
 [DisallowMultipleComponent]
 public class FireProjectileLight : MonoBehaviour
 {
     [SerializeField] private FireLightSource fireLightSource;
     [SerializeField] private Light2D pointLight2D;
-    [SerializeField] private float revealRadius = 4f;
+    [FormerlySerializedAs("revealRadius")]
+    [SerializeField] private float lightRadius = 4f;
     [SerializeField] private float lightIntensity = 0.65f;
     [SerializeField] private Color lightColor = new Color(1f, 0.42f, 0.08f, 1f);
     [SerializeField] private float lightLifetimeAfterHit = 1.2f;
@@ -35,7 +37,7 @@ public class FireProjectileLight : MonoBehaviour
 
         if (fireLightSource != null)
         {
-            fireLightSource.SetRadiusAndIntensity(revealRadius, intensity);
+            fireLightSource.SetRadiusAndIntensity(lightRadius, intensity);
             fireLightSource.SetLightEnabled(intensity > 0.01f);
         }
 
@@ -99,21 +101,20 @@ public class FireProjectileLight : MonoBehaviour
     {
         if (fireLightSource != null)
         {
-            fireLightSource.SetRadiusAndIntensity(revealRadius, lightIntensity);
-            fireLightSource.SetRevealEnabled(true);
+            fireLightSource.SetRadiusAndIntensity(lightRadius, lightIntensity);
             fireLightSource.SetLightEnabled(true);
         }
 
         if (pointLight2D != null)
         {
-            DarknessLightUtility.ConfigurePointLight(pointLight2D, revealRadius, lightIntensity, lightColor);
+            DarknessLightUtility.ConfigurePointLight(pointLight2D, lightRadius, lightIntensity, lightColor);
             pointLight2D.enabled = true;
         }
     }
 
     private void OnValidate()
     {
-        revealRadius = Mathf.Max(0.01f, revealRadius);
+        lightRadius = Mathf.Max(0.01f, lightRadius);
         lightIntensity = Mathf.Max(0f, lightIntensity);
         lightLifetimeAfterHit = Mathf.Max(0f, lightLifetimeAfterHit);
 
@@ -138,6 +139,6 @@ public class FireProjectileLight : MonoBehaviour
         }
 
         Gizmos.color = new Color(1f, 0.35f, 0.08f, 0.75f);
-        Gizmos.DrawWireSphere(transform.position, revealRadius);
+        Gizmos.DrawWireSphere(transform.position, lightRadius);
     }
 }

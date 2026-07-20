@@ -1,12 +1,12 @@
-Shader "WaterAndFire/SpriteFireRevealMask"
+Shader "WaterAndFire/SpriteCharacterVisionMask"
 {
     Properties
     {
         [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
         _Color ("Tint", Color) = (1,1,1,1)
         _HiddenAlpha ("Hidden Alpha", Range(0, 1)) = 0
-        _RevealedAlpha ("Revealed Alpha", Range(0, 1)) = 1
-        _RevealSoftness ("Reveal Softness", Range(0.01, 3)) = 0.65
+        _VisibleAlpha ("Visible Alpha", Range(0, 1)) = 1
+        _VisionSoftness ("Vision Softness", Range(0.01, 3)) = 0.8
     }
 
     SubShader
@@ -32,7 +32,7 @@ Shader "WaterAndFire/SpriteFireRevealMask"
             #pragma target 3.0
             #include "UnityCG.cginc"
 
-            #define MAX_REVEAL_SOURCES 8
+            #define MAX_VISION_SOURCES 8
 
             struct appdata
             {
@@ -52,10 +52,10 @@ Shader "WaterAndFire/SpriteFireRevealMask"
             sampler2D _MainTex;
             fixed4 _Color;
             float _HiddenAlpha;
-            float _RevealedAlpha;
-            float _RevealSoftness;
-            int _RevealSourceCount;
-            float4 _RevealSources[MAX_REVEAL_SOURCES];
+            float _VisibleAlpha;
+            float _VisionSoftness;
+            int _VisionSourceCount;
+            float4 _VisionSources[MAX_VISION_SOURCES];
 
             v2f vert(appdata v)
             {
@@ -70,26 +70,24 @@ Shader "WaterAndFire/SpriteFireRevealMask"
             fixed4 frag(v2f i) : SV_Target
             {
                 fixed4 tex = tex2D(_MainTex, i.uv) * i.color;
-                float reveal = 0.0;
-                float softness = max(0.001, _RevealSoftness);
+                float visibility = _HiddenAlpha;
+                float softness = max(0.001, _VisionSoftness);
 
                 [unroll]
-                for (int index = 0; index < MAX_REVEAL_SOURCES; index++)
+                for (int index = 0; index < MAX_VISION_SOURCES; index++)
                 {
-                    if (index >= _RevealSourceCount)
+                    if (index >= _VisionSourceCount)
                     {
                         break;
                     }
 
-                    float radius = max(0.001, _RevealSources[index].z);
-                    float distanceToSource = distance(i.worldPos, _RevealSources[index].xy);
-                    float sourceReveal = 1.0 - smoothstep(radius - softness, radius, distanceToSource);
-                    float sourceAlpha = lerp(_HiddenAlpha, _RevealedAlpha * saturate(_RevealSources[index].w), sourceReveal);
-                    reveal = max(reveal, sourceAlpha);
+                    float radius = max(0.001, _VisionSources[index].z);
+                    float distanceToSource = distance(i.worldPos, _VisionSources[index].xy);
+                    float sourceVisibility = 1.0 - smoothstep(radius - softness, radius, distanceToSource);
+                    visibility = max(visibility, _VisibleAlpha * sourceVisibility * saturate(_VisionSources[index].w));
                 }
 
-                float alpha = tex.a * max(_HiddenAlpha, reveal);
-                return fixed4(tex.rgb, alpha);
+                return fixed4(tex.rgb, tex.a * visibility);
             }
             ENDCG
         }

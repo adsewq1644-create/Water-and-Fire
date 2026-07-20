@@ -17,6 +17,12 @@ public static class BatNavigationSetupEditor
     public const int AgentTypeId = 183602731;
 
     private const string DarkBatPrefabPath = "Assets/Prefabs/Darkness/DarkBat.prefab";
+    private const string BatPlacementPrefabFolder = "Assets/Prefabs/Darkness/BatNavigation";
+    private const string VisionLimitedPrefabFolder = "Assets/Prefabs/Darkness/VisionLimited";
+    private const string GroundPrefabPath = "Assets/Prefabs/Ground/Ground.prefab";
+    private const string WallPrefabPath = "Assets/Prefabs/Ground/Wall.prefab";
+    private const string SlipperySlopePrefabPath = "Assets/Prefabs/Ground/SlipperySlope.prefab";
+    private const string MovingPlatformPrefabPath = "Assets/Prefabs/Platforms/MovingPlatform_Right.prefab";
     private const string NavigationRootName = "95_BatNavigation";
     private const string FlightBoundsName = "BatFlightBounds";
 
@@ -29,6 +35,7 @@ public static class BatNavigationSetupEditor
         EnsureBatAgentType();
         ConfigureDarkBatPrefab();
         ConfigureReusableMovingObstaclePrefabs();
+        CreateBatNavigationPlacementPrefabs();
 
         GameObject zone = GameObject.Find("Zone_02");
         if (zone == null)
@@ -68,7 +75,10 @@ public static class BatNavigationSetupEditor
             root = rootTransform.gameObject;
         }
 
-        root.transform.position = new Vector3(35.5f, 103f, 0f);
+        if (rootTransform == null)
+        {
+            root.transform.position = new Vector3(35.5f, 103f, 0f);
+        }
         root.transform.rotation = Quaternion.Euler(270f, 0f, 0f);
         root.transform.localScale = Vector3.one;
 
@@ -83,12 +93,6 @@ public static class BatNavigationSetupEditor
         surface.hideEditorLogs = true;
         GetOrAdd<CollectSources2d>(root);
 
-        BatNavigationZone2D coordinator = GetOrAdd<BatNavigationZone2D>(root);
-        SerializedObject coordinatorData = new SerializedObject(coordinator);
-        coordinatorData.FindProperty("surface").objectReferenceValue = surface;
-        coordinatorData.FindProperty("allowSettledObstacleRebuilds").boolValue = false;
-        coordinatorData.ApplyModifiedPropertiesWithoutUndo();
-
         Transform boundsTransform = root.transform.Find(FlightBoundsName);
         GameObject flightBounds;
         if (boundsTransform == null)
@@ -102,22 +106,306 @@ public static class BatNavigationSetupEditor
         }
 
         flightBounds.layer = staticLayer;
-        flightBounds.transform.position = new Vector3(35.5f, 103f, 0f);
-        flightBounds.transform.rotation = Quaternion.identity;
-        flightBounds.transform.localScale = Vector3.one;
         BoxCollider2D flightCollider = GetOrAdd<BoxCollider2D>(flightBounds);
+        if (boundsTransform == null)
+        {
+            flightBounds.transform.position = new Vector3(35.5f, 103f, 0f);
+            flightBounds.transform.rotation = Quaternion.identity;
+            flightBounds.transform.localScale = Vector3.one;
+            flightCollider.size = new Vector2(43f, 28f);
+            flightCollider.offset = Vector2.zero;
+        }
         flightCollider.isTrigger = true;
-        flightCollider.size = new Vector2(43f, 28f);
-        flightCollider.offset = Vector2.zero;
         NavMeshModifier walkable = GetOrAdd<NavMeshModifier>(flightBounds);
         walkable.ignoreFromBuild = false;
         walkable.overrideArea = true;
         walkable.area = 0;
 
+        BatNavigationZone2D coordinator = GetOrAdd<BatNavigationZone2D>(root);
+        SerializedObject coordinatorData = new SerializedObject(coordinator);
+        coordinatorData.FindProperty("surface").objectReferenceValue = surface;
+        coordinatorData.FindProperty("flightBounds").objectReferenceValue = flightCollider;
+        coordinatorData.FindProperty("zoneCenter").vector2Value = flightBounds.transform.position;
+        coordinatorData.FindProperty("zoneSize").vector2Value = flightCollider.size;
+        coordinatorData.FindProperty("allowSettledObstacleRebuilds").boolValue = false;
+        coordinatorData.ApplyModifiedPropertiesWithoutUndo();
+        coordinator.ApplyZoneBounds();
+
         EditorUtility.SetDirty(root);
         EditorUtility.SetDirty(surface);
         EditorUtility.SetDirty(flightBounds);
         return surface;
+    }
+
+    [MenuItem("Tools/Water and Fire/Create Zone 02 Bat Placement Prefabs")]
+    public static void CreateBatNavigationPlacementPrefabs()
+    {
+        EnsureFolder("Assets/Prefabs/Darkness", "BatNavigation");
+        EnsureFolder("Assets/Prefabs/Darkness", "VisionLimited");
+        CreateConfiguredPlacementPrefab(GroundPrefabPath, BatPlacementPrefabFolder + "/BatStaticGround.prefab", false);
+        CreateConfiguredPlacementPrefab(WallPrefabPath, BatPlacementPrefabFolder + "/BatStaticWall.prefab", false);
+        CreateConfiguredPlacementPrefab(SlipperySlopePrefabPath, BatPlacementPrefabFolder + "/BatSlipperySlope.prefab", false);
+        CreateConfiguredPlacementPrefab(MovingPlatformPrefabPath, BatPlacementPrefabFolder + "/BatMovingPlatform.prefab", true);
+        CreateShockwaveHiddenPlacementPrefab(
+            BatPlacementPrefabFolder + "/BatStaticGround.prefab",
+            BatPlacementPrefabFolder + "/BatHiddenStaticGround.prefab");
+        CreateShockwaveHiddenPlacementPrefab(
+            BatPlacementPrefabFolder + "/BatStaticWall.prefab",
+            BatPlacementPrefabFolder + "/BatHiddenStaticWall.prefab");
+        CreateShockwaveHiddenPlacementPrefab(
+            BatPlacementPrefabFolder + "/BatSlipperySlope.prefab",
+            BatPlacementPrefabFolder + "/BatHiddenSlipperySlope.prefab");
+        CreateShockwaveHiddenPlacementPrefab(
+            BatPlacementPrefabFolder + "/BatMovingPlatform.prefab",
+            BatPlacementPrefabFolder + "/BatHiddenMovingPlatform.prefab");
+        ConfigureVisionLimitedPlacementPrefab(BatPlacementPrefabFolder + "/BatStaticGround.prefab");
+        ConfigureVisionLimitedPlacementPrefab(BatPlacementPrefabFolder + "/BatStaticWall.prefab");
+        ConfigureVisionLimitedPlacementPrefab(BatPlacementPrefabFolder + "/BatSlipperySlope.prefab");
+        ConfigureVisionLimitedPlacementPrefab(BatPlacementPrefabFolder + "/BatMovingPlatform.prefab");
+        CreateVisionLimitedGroundPrefab();
+        CreateVisionLimitedMidgroundPrefab();
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+    }
+
+    private static void CreateConfiguredPlacementPrefab(string sourcePath, string destinationPath, bool moving)
+    {
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(destinationPath) == null)
+        {
+            if (!AssetDatabase.CopyAsset(sourcePath, destinationPath))
+            {
+                Debug.LogError("Could not create bat navigation prefab from " + sourcePath);
+                return;
+            }
+        }
+
+        GameObject root = PrefabUtility.LoadPrefabContents(destinationPath);
+        try
+        {
+            int targetLayer = LayerMask.NameToLayer(moving ? BatMovingLayerName : BatStaticLayerName);
+            Collider2D[] colliders = root.GetComponentsInChildren<Collider2D>(true);
+            for (int i = 0; i < colliders.Length; i++)
+            {
+                Collider2D collider = colliders[i];
+                if (collider.isTrigger)
+                {
+                    continue;
+                }
+
+                collider.gameObject.layer = targetLayer;
+                if (!moving)
+                {
+                    NavMeshModifier modifier = GetOrAdd<NavMeshModifier>(collider.gameObject);
+                    modifier.ignoreFromBuild = false;
+                    modifier.overrideArea = true;
+                    modifier.area = 1;
+                }
+            }
+
+            if (moving)
+            {
+                Transform movingRoot = FindMovingRoot(root.transform, null);
+                GetOrAdd<MovingNavObstacle2D>((movingRoot != null ? movingRoot : root.transform).gameObject);
+            }
+
+            PrefabUtility.SaveAsPrefabAsset(root, destinationPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
+
+    private static void CreateShockwaveHiddenPlacementPrefab(string sourcePath, string destinationPath)
+    {
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(destinationPath) == null)
+        {
+            if (!AssetDatabase.CopyAsset(sourcePath, destinationPath))
+            {
+                Debug.LogError("Could not create shockwave-hidden bat navigation prefab from " + sourcePath);
+                return;
+            }
+        }
+
+        GameObject root = PrefabUtility.LoadPrefabContents(destinationPath);
+        try
+        {
+            Transform visualRoot = root.transform.Find("ShockwaveVisualRoot");
+            if (visualRoot == null)
+            {
+                visualRoot = new GameObject("ShockwaveVisualRoot").transform;
+                visualRoot.SetParent(root.transform, false);
+            }
+
+            SpriteRenderer rootRenderer = root.GetComponent<SpriteRenderer>();
+            SpriteRenderer visualRenderer = visualRoot.GetComponent<SpriteRenderer>();
+            if (rootRenderer != null)
+            {
+                if (visualRenderer == null)
+                {
+                    visualRenderer = visualRoot.gameObject.AddComponent<SpriteRenderer>();
+                }
+
+                EditorUtility.CopySerialized(rootRenderer, visualRenderer);
+                Object.DestroyImmediate(rootRenderer);
+            }
+
+            SpriteRenderer[] renderers = visualRoot.GetComponentsInChildren<SpriteRenderer>(true);
+            ShockwaveHiddenPlatform2D hiddenPlatform = GetOrAdd<ShockwaveHiddenPlatform2D>(root);
+            SerializedObject hiddenData = new SerializedObject(hiddenPlatform);
+            SerializedProperty rendererData = hiddenData.FindProperty("silhouetteRenderers");
+            rendererData.arraySize = renderers.Length;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                rendererData.GetArrayElementAtIndex(i).objectReferenceValue = renderers[i];
+            }
+
+            hiddenData.FindProperty("visualRoot").objectReferenceValue = visualRoot;
+            hiddenData.FindProperty("hiddenAlpha").floatValue = 0f;
+            hiddenData.FindProperty("revealedAlpha").floatValue = 0.72f;
+            hiddenData.FindProperty("startHidden").boolValue = true;
+            if (renderers.Length > 0)
+            {
+                Color revealColor = renderers[0].color;
+                revealColor.a = 1f;
+                hiddenData.FindProperty("silhouetteColor").colorValue = revealColor;
+            }
+
+            hiddenData.ApplyModifiedPropertiesWithoutUndo();
+            PrefabUtility.SaveAsPrefabAsset(root, destinationPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
+
+    private static void CreateVisionLimitedGroundPrefab()
+    {
+        string sourcePath = BatPlacementPrefabFolder + "/BatStaticGround.prefab";
+        string destinationPath = VisionLimitedPrefabFolder + "/VisionLimitedGround.prefab";
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(destinationPath) == null)
+        {
+            if (!AssetDatabase.CopyAsset(sourcePath, destinationPath))
+            {
+                Debug.LogError("Could not create vision-limited ground prefab.");
+                return;
+            }
+        }
+
+        GameObject root = PrefabUtility.LoadPrefabContents(destinationPath);
+        try
+        {
+            ConfigureVisionComponent(root);
+            PrefabUtility.SaveAsPrefabAsset(root, destinationPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
+
+    private static void ConfigureVisionLimitedPlacementPrefab(string path)
+    {
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            ConfigureVisionComponent(root);
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
+
+    private static void CreateVisionLimitedMidgroundPrefab()
+    {
+        string destinationPath = VisionLimitedPrefabFolder + "/VisionLimitedMidground.prefab";
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(destinationPath) == null)
+        {
+            if (!AssetDatabase.CopyAsset(GroundPrefabPath, destinationPath))
+            {
+                Debug.LogError("Could not create vision-limited midground prefab.");
+                return;
+            }
+        }
+
+        GameObject root = PrefabUtility.LoadPrefabContents(destinationPath);
+        try
+        {
+            Collider2D[] colliders = root.GetComponentsInChildren<Collider2D>(true);
+            for (int i = colliders.Length - 1; i >= 0; i--)
+            {
+                Object.DestroyImmediate(colliders[i]);
+            }
+
+            Rigidbody2D[] bodies = root.GetComponentsInChildren<Rigidbody2D>(true);
+            for (int i = bodies.Length - 1; i >= 0; i--)
+            {
+                Object.DestroyImmediate(bodies[i]);
+            }
+
+            NavMeshModifier[] modifiers = root.GetComponentsInChildren<NavMeshModifier>(true);
+            for (int i = modifiers.Length - 1; i >= 0; i--)
+            {
+                Object.DestroyImmediate(modifiers[i]);
+            }
+
+            MovingNavObstacle2D[] movingObstacles = root.GetComponentsInChildren<MovingNavObstacle2D>(true);
+            for (int i = movingObstacles.Length - 1; i >= 0; i--)
+            {
+                Object.DestroyImmediate(movingObstacles[i]);
+            }
+
+            Transform[] transforms = root.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < transforms.Length; i++)
+            {
+                transforms[i].gameObject.layer = 0;
+            }
+
+            root.tag = "Untagged";
+            SpriteRenderer[] renderers = root.GetComponentsInChildren<SpriteRenderer>(true);
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                renderers[i].sortingOrder = -10;
+            }
+
+            ConfigureVisionComponent(root);
+            PrefabUtility.SaveAsPrefabAsset(root, destinationPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
+
+    private static void ConfigureVisionComponent(GameObject root)
+    {
+        SpriteRenderer[] renderers = root.GetComponentsInChildren<SpriteRenderer>(true);
+        CharacterVisionVisible2D vision = GetOrAdd<CharacterVisionVisible2D>(root);
+        SerializedObject visionData = new SerializedObject(vision);
+        SerializedProperty rendererData = visionData.FindProperty("renderers");
+        rendererData.arraySize = renderers.Length;
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            rendererData.GetArrayElementAtIndex(i).objectReferenceValue = renderers[i];
+        }
+
+        visionData.FindProperty("restrictOnlyInDarkZone").boolValue = true;
+        visionData.FindProperty("hiddenAlpha").floatValue = 0f;
+        visionData.FindProperty("visibleAlpha").floatValue = 1f;
+        visionData.FindProperty("visionSoftness").floatValue = 0.8f;
+        visionData.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void EnsureFolder(string parent, string child)
+    {
+        string path = parent + "/" + child;
+        if (!AssetDatabase.IsValidFolder(path))
+        {
+            AssetDatabase.CreateFolder(parent, child);
+        }
     }
 
     private static void ConfigureZoneStaticSources(GameObject zone, int staticLayer, int movingLayer)
