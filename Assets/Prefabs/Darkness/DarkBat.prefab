@@ -10,9 +10,10 @@ GameObject:
   m_Component:
   - component: {fileID: 200001}
   - component: {fileID: 200002}
-  - component: {fileID: 200003}
   - component: {fileID: 200004}
-  m_Layer: 0
+  - component: {fileID: 3049136590197883782}
+  - component: {fileID: 7204788749682874635}
+  m_Layer: 11
   m_Name: DarkBat
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -62,42 +63,6 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 1
   m_Constraints: 4
---- !u!58 &200003
-CircleCollider2D:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 200000}
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Density: 1
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_ForceSendLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_ForceReceiveLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_ContactCaptureLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_CallbackLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_IsTrigger: 1
-  m_UsedByEffector: 0
-  m_CompositeOperation: 0
-  m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0}
-  m_Radius: 0.42
 --- !u!114 &200004
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -113,8 +78,9 @@ MonoBehaviour:
   visualRoot: {fileID: 200011}
   renderers:
   - {fileID: 200012}
-  hitCollider: {fileID: 200003}
+  hitCollider: {fileID: 7866688462799360258}
   body: {fileID: 200002}
+  motor: {fileID: 7204788749682874635}
   wingAudio: {fileID: 0}
   deathParticles: {fileID: 0}
   chaseSpeed: 7
@@ -122,38 +88,90 @@ MonoBehaviour:
   attackDistance: 0.3
   chaseLeashRadius: 6
   maxChaseDuration: 2.5
-  returnCompleteDistance: 0.1
   postAttackDelay: 0.3
   useCurledFlight: 1
   curlRadius: 0.45
   curlAngularSpeed: 7
-  guideAdvanceSpeed: 4
-  maxFlightSpeed: 8
-  curlStartDistance: 0.8
-  fullCurlDistance: 2.5
+  curlRadiusSmoothSpeed: 6
+  targetApproachDistance: 1.2
   targetApproachRadiusMultiplier: 0.15
-  obstacleCurlMultiplier: 0.25
+  narrowSpaceCurlMultiplier: 0.15
+  movingObstacleCurlMultiplier: 0.1
   returnCurlMultiplier: 0.6
-  directionSmoothTime: 0.12
+  visualCollisionRadius: 0.2
   clockwiseCurl: 1
   alternateInitialCurlDirection: 1
-  obstacleMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  obstacleProbeRadius: 0.25
-  obstacleLookAheadDistance: 1.5
-  obstacleSkin: 0.05
-  avoidanceTurnSpeed: 8
-  avoidanceDirectionLockDuration: 0.2
-  wallSlideMultiplier: 0.8
-  stuckCheckDuration: 0.6
-  stuckMovementThreshold: 0.08
-  avoidTriggers: 1
-  showAvoidanceGizmos: 1
   horizontalKnockback: 8
   verticalKnockback: 4
   inputLockDuration: 0.15
   contactHitCooldown: 0.75
+  showDebugGizmos: 1
+--- !u!195 &3049136590197883782
+NavMeshAgent:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 200000}
+  m_Enabled: 1
+  m_AgentTypeID: 183602731
+  m_Radius: 0.24
+  m_Speed: 8
+  m_Acceleration: 40
+  avoidancePriority: 78
+  m_AngularSpeed: 720
+  m_StoppingDistance: 0
+  m_AutoTraverseOffMeshLink: 1
+  m_AutoBraking: 0
+  m_AutoRepath: 0
+  m_Height: 0.48
+  m_BaseOffset: 0
+  m_WalkableMask: 4294967295
+  m_ObstacleAvoidanceType: 0
+--- !u!114 &7204788749682874635
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 200000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59eb6db297431324eb8f5bc3fb144a39, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  agent: {fileID: 3049136590197883782}
+  body: {fileID: 200002}
+  navMeshAreaMask: -1
+  navigationRadius: 0.24
+  targetSampleRadius: 1.5
+  homeSampleRadius: 1.5
+  destinationTolerance: 0.1
+  repathIntervalMin: 0.18
+  repathIntervalMax: 0.32
+  targetMoveRepathThreshold: 0.35
+  invalidPathRetryInterval: 0.4
+  staticObstacleMask:
+    serializedVersion: 2
+    m_Bits: 512
+  movingObstacleMask:
+    serializedVersion: 2
+    m_Bits: 1024
+  movingObstacleProbeDistance: 1.2
+  movingObstacleStopDistance: 0.34
+  movingObstacleAvoidDistance: 0.75
+  movingObstacleAvoidWeight: 0.8
+  dynamicBlockRepathDelay: 0.35
+  avoidanceDirectionHoldTime: 0.22
+  finalMoveSkin: 0.02
+  pathPendingTimeout: 1
+  noValidPathTimeout: 1.5
+  noProgressTimeout: 2
+  noProgressDistanceThreshold: 0.08
+  dynamicBlockedTimeout: 2.5
+  totalNavigationFailureTimeout: 3.5
+  maxConsecutivePathFailures: 3
+  maxConsecutiveRepathWithoutProgress: 4
   showDebugGizmos: 1
 --- !u!1 &200010
 GameObject:
@@ -184,7 +202,8 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 0.9, y: 0.38, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 3331897201086892374}
   m_Father: {fileID: 200001}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 20}
 --- !u!212 &200012
@@ -242,3 +261,71 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!1 &3095581801398330545
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3331897201086892374}
+  - component: {fileID: 7866688462799360258}
+  m_Layer: 11
+  m_Name: InteractionRoot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3331897201086892374
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3095581801398330545}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1.1111112, y: 2.631579, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 200011}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!58 &7866688462799360258
+CircleCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3095581801398330545}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 1
+  m_UsedByEffector: 0
+  m_CompositeOperation: 0
+  m_CompositeOrder: 0
+  m_Offset: {x: 0, y: 0}
+  m_Radius: 0.42

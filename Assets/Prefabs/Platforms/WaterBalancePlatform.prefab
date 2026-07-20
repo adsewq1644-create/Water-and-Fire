@@ -81,7 +81,8 @@ GameObject:
   - component: {fileID: 200002}
   - component: {fileID: 200003}
   - component: {fileID: 200004}
-  m_Layer: 0
+  - component: {fileID: 4742519674925777554}
+  m_Layer: 10
   m_Name: LeftPlatform
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -231,6 +232,26 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 1
   m_Constraints: 4
+--- !u!114 &4742519674925777554
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 200000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7bc100013a0dedb42b06aa1e8d54e281, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mode: 0
+  obstacleColliders:
+  - {fileID: 200003}
+  body: {fileID: 200004}
+  settleVelocityThreshold: 0.03
+  settledDuration: 0.4
+  updateNavMeshWhenSettled: 0
+  showGizmos: 1
 --- !u!1 &300000
 GameObject:
   m_ObjectHideFlags: 0
@@ -243,7 +264,8 @@ GameObject:
   - component: {fileID: 300002}
   - component: {fileID: 300003}
   - component: {fileID: 300004}
-  m_Layer: 0
+  - component: {fileID: 8926631147939917968}
+  m_Layer: 10
   m_Name: RightPlatform
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -393,6 +415,26 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 1
   m_Constraints: 4
+--- !u!114 &8926631147939917968
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 300000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7bc100013a0dedb42b06aa1e8d54e281, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mode: 0
+  obstacleColliders:
+  - {fileID: 300003}
+  body: {fileID: 300004}
+  settleVelocityThreshold: 0.03
+  settledDuration: 0.4
+  updateNavMeshWhenSettled: 0
+  showGizmos: 1
 --- !u!1 &400000
 GameObject:
   m_ObjectHideFlags: 0

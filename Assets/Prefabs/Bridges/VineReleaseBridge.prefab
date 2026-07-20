@@ -2918,7 +2918,8 @@ GameObject:
   - component: {fileID: 6564792186345246660}
   - component: {fileID: 3833856906267091001}
   - component: {fileID: 2607726965701069558}
-  m_Layer: 0
+  - component: {fileID: 5001083475705708328}
+  m_Layer: 10
   m_Name: VineReleaseBridge
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3091,6 +3092,26 @@ MonoBehaviour:
   ropeWidth: 0.075
   knotScale: 0.18
   sortingOrder: 1
+--- !u!114 &5001083475705708328
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5458411385781615418}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7bc100013a0dedb42b06aa1e8d54e281, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mode: 0
+  obstacleColliders:
+  - {fileID: 3833856906267091001}
+  body: {fileID: 6564792186345246660}
+  settleVelocityThreshold: 0.03
+  settledDuration: 0.4
+  updateNavMeshWhenSettled: 0
+  showGizmos: 1
 --- !u!1 &5947778235278764575
 GameObject:
   m_ObjectHideFlags: 0
