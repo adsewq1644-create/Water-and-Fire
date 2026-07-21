@@ -106,7 +106,7 @@ MonoBehaviour:
   inputLockDuration: 0.15
   contactHitCooldown: 0.75
   visibilityCheckInterval: 0.1
-  showDebugGizmos: 1
+  showDebugGizmos: 0
 --- !u!195 &3049136590197883782
 NavMeshAgent:
   m_ObjectHideFlags: 0

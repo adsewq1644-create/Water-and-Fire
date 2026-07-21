@@ -200,15 +200,15 @@ MonoBehaviour:
   - {fileID: 758725954954952063}
   visualRoot: {fileID: 2395615521758004896}
   dustParticles: {fileID: 0}
-  revealDuration: 2.5
+  revealDuration: 1.5
   fadeInDuration: 0.1
   fadeOutDuration: 0.4
   hiddenAlpha: 0
   revealedAlpha: 0.72
   silhouetteColor: {r: 0.52, g: 0.62, b: 0.76, a: 1}
   startHidden: 1
-  shakeDuration: 0.35
-  shakeAmplitude: 0.06
+  shakeDuration: 1.5
+  shakeAmplitude: 0.1
   shakeCurve:
     serializedVersion: 2
     m_Curve:
@@ -222,8 +222,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 1
-      value: 0
+      time: 1.1124878
+      value: 1
       inSlope: 0
       outSlope: 0
       tangentMode: 0
