@@ -27,14 +27,11 @@ public static class DarkFogAtmosphereSetupEditor
         Material backgroundMaterial = CreateOrUpdateMaterial(
             MaterialFolder + "/DarkFogBackground.mat",
             "WaterAndFire/DarkFogGradient2D");
-        Material farFogMaterial = CreateOrUpdateMaterial(
-            MaterialFolder + "/DarkFogFar.mat",
+        Material staticFogMaterial = CreateOrUpdateMaterial(
+            MaterialFolder + "/DarkFogStatic.mat",
             "WaterAndFire/DarkFogLayer2D");
-        Material midFogMaterial = CreateOrUpdateMaterial(
-            MaterialFolder + "/DarkFogMid.mat",
-            "WaterAndFire/DarkFogLayer2D");
-        Material nearFogMaterial = CreateOrUpdateMaterial(
-            MaterialFolder + "/DarkFogNear.mat",
+        Material driftingFogMaterial = CreateOrUpdateMaterial(
+            MaterialFolder + "/DarkFogDrifting.mat",
             "WaterAndFire/DarkFogLayer2D");
         Material ambientDustMaterial = CreateOrUpdateMaterial(
             MaterialFolder + "/AmbientDust.mat",
@@ -54,9 +51,8 @@ public static class DarkFogAtmosphereSetupEditor
 
         ConfigureMaterialDefaults(
             backgroundMaterial,
-            farFogMaterial,
-            midFogMaterial,
-            nearFogMaterial,
+            staticFogMaterial,
+            driftingFogMaterial,
             ambientDustMaterial,
             farSilhouetteMaterial,
             midSilhouetteMaterial,
@@ -65,9 +61,8 @@ public static class DarkFogAtmosphereSetupEditor
 
         CreateAtmospherePrefab(
             backgroundMaterial,
-            farFogMaterial,
-            midFogMaterial,
-            nearFogMaterial,
+            staticFogMaterial,
+            driftingFogMaterial,
             ambientDustMaterial,
             farSilhouetteMaterial,
             midSilhouetteMaterial);
@@ -80,23 +75,19 @@ public static class DarkFogAtmosphereSetupEditor
 
     private static void CreateAtmospherePrefab(
         Material backgroundMaterial,
-        Material farFogMaterial,
-        Material midFogMaterial,
-        Material nearFogMaterial,
+        Material staticFogMaterial,
+        Material driftingFogMaterial,
         Material ambientDustMaterial,
         Material farSilhouetteMaterial,
         Material midSilhouetteMaterial)
     {
-        GameObject root = new GameObject("DarkFogAtmosphere");
+        GameObject root = new GameObject("EnvironmentRegion_FogArea");
         try
         {
             DarkFogAtmosphere2D atmosphere = root.AddComponent<DarkFogAtmosphere2D>();
-            Transform backgroundRoot = CreateGroup(root.transform, "00_Sky_BackgroundGradient", 0f);
-            Transform farRoot = CreateGroup(root.transform, "10_FarLayer", 0f);
-            Transform midRoot = CreateGroup(root.transform, "20_MidLayer", 0f);
-            Transform nearRoot = CreateGroup(root.transform, "30_NearLayer", 0f);
-            Transform dustRoot = CreateGroup(root.transform, "40_AmbientDust", 0f);
-            AmbientDust2D ambientDust = dustRoot.gameObject.AddComponent<AmbientDust2D>();
+            Transform backgroundRoot = CreateGroup(root.transform, "BackgroundRoot", 0f);
+            Transform fogRoot = CreateGroup(root.transform, "FogRoot", 0f);
+            Transform dustRoot = CreateGroup(root.transform, "AmbientDustRoot", 0f);
 
             MeshRenderer background = CreateQuad(
                 backgroundRoot,
@@ -106,54 +97,62 @@ public static class DarkFogAtmosphereSetupEditor
                 backgroundMaterial,
                 -100);
 
-            Transform farFogGroup = CreateGroup(farRoot, "FarFogLayer", 4.5f);
-            CreateQuad(farFogGroup, "FarFog_Back", new Vector3(0f, -0.8f, 0f), new Vector3(60f, 25f, 1f), farFogMaterial, -94);
-            CreateQuad(farFogGroup, "FarFog_Front", new Vector3(2.8f, -2.6f, -0.1f), new Vector3(62f, 19f, 1f), farFogMaterial, -82);
-            Transform farSilhouetteGroup = CreateGroup(farRoot, "FarSilhouetteLayer", 4f);
+            Transform farSilhouetteGroup = CreateGroup(backgroundRoot, "FarSilhouettes", 4f);
             CreateForestSilhouettes(farSilhouetteGroup, farSilhouetteMaterial, true, -88);
-
-            Transform midFogGroup = CreateGroup(midRoot, "MidFogLayer", 3.2f);
-            CreateQuad(midFogGroup, "MidFog_Back", new Vector3(-1.5f, -2.2f, 0f), new Vector3(60f, 20f, 1f), midFogMaterial, -74);
-            CreateQuad(midFogGroup, "MidFog_Front", new Vector3(2.2f, -4.0f, -0.1f), new Vector3(62f, 14f, 1f), midFogMaterial, -61);
-            Transform midSilhouetteGroup = CreateGroup(midRoot, "MidSilhouetteLayer", 2.8f);
+            Transform midSilhouetteGroup = CreateGroup(backgroundRoot, "MidSilhouettes", 2.8f);
             CreateForestSilhouettes(midSilhouetteGroup, midSilhouetteMaterial, false, -68);
 
-            Transform nearFogGroup = CreateGroup(nearRoot, "NearFogLayer", 1.8f);
-            CreateQuad(nearFogGroup, "NearFog_LowerBank", new Vector3(0f, -6.2f, 0f), new Vector3(64f, 10f, 1f), nearFogMaterial, -48);
-            CreateQuad(nearFogGroup, "NearFog_ThinWisp", new Vector3(-3f, -3.8f, -0.1f), new Vector3(60f, 7f, 1f), nearFogMaterial, -47);
+            FogRegion2D fogRegion = fogRoot.gameObject.AddComponent<FogRegion2D>();
+            Transform staticFogGroup = CreateGroup(fogRoot, "StaticFog", 4.2f);
+            MeshRenderer staticFog = CreateQuad(
+                staticFogGroup,
+                "StaticFog_Region",
+                Vector3.zero,
+                new Vector3(58f, 28f, 1f),
+                staticFogMaterial,
+                -78);
+            Transform driftingFogGroup = CreateGroup(fogRoot, "DriftingFog", 2.2f);
+            MeshRenderer driftingFog = CreateQuad(
+                driftingFogGroup,
+                "DriftingFog_Region",
+                Vector3.zero,
+                new Vector3(58f, 28f, 1f),
+                driftingFogMaterial,
+                -52);
 
+            Transform farDustRegion = CreateGroup(dustRoot, "FarDustRegion", 7f);
             ParticleSystem farDust = CreateDustParticleSystem(
-                dustRoot,
-                "Far_AmbientDust",
+                farDustRegion,
+                "FarDustParticles",
                 ambientDustMaterial,
                 -80,
-                7f);
+                0f);
+            AmbientDustRegion2D farDustController = farDustRegion.gameObject.AddComponent<AmbientDustRegion2D>();
+
+            Transform midDustRegion = CreateGroup(dustRoot, "MidDustRegion", 2f);
             ParticleSystem midDust = CreateDustParticleSystem(
-                dustRoot,
-                "Mid_AmbientDust",
+                midDustRegion,
+                "MidDustParticles",
                 ambientDustMaterial,
                 -42,
-                2f);
+                0f);
+            AmbientDustRegion2D midDustController = midDustRegion.gameObject.AddComponent<AmbientDustRegion2D>();
 
             SerializedObject data = new SerializedObject(atmosphere);
-            data.FindProperty("backgroundRoot").objectReferenceValue = backgroundRoot;
-            data.FindProperty("farLayerRoot").objectReferenceValue = farRoot;
-            data.FindProperty("midLayerRoot").objectReferenceValue = midRoot;
-            data.FindProperty("nearLayerRoot").objectReferenceValue = nearRoot;
             data.FindProperty("backgroundRenderer").objectReferenceValue = background;
-            SetRendererArray(data.FindProperty("farFogRenderers"), farFogGroup.GetComponentsInChildren<Renderer>(true));
-            SetRendererArray(data.FindProperty("midFogRenderers"), midFogGroup.GetComponentsInChildren<Renderer>(true));
-            SetRendererArray(data.FindProperty("nearFogRenderers"), nearFogGroup.GetComponentsInChildren<Renderer>(true));
             SetRendererArray(data.FindProperty("farSilhouetteRenderers"), farSilhouetteGroup.GetComponentsInChildren<Renderer>(true));
             SetRendererArray(data.FindProperty("midSilhouetteRenderers"), midSilhouetteGroup.GetComponentsInChildren<Renderer>(true));
             data.ApplyModifiedPropertiesWithoutUndo();
             atmosphere.ApplyAtmosphere();
 
-            SerializedObject dustData = new SerializedObject(ambientDust);
-            dustData.FindProperty("farDust").objectReferenceValue = farDust;
-            dustData.FindProperty("midDust").objectReferenceValue = midDust;
-            dustData.ApplyModifiedPropertiesWithoutUndo();
-            ambientDust.ApplySettings();
+            SerializedObject fogData = new SerializedObject(fogRegion);
+            SetRendererArray(fogData.FindProperty("staticFogRenderers"), new Renderer[] { staticFog });
+            SetRendererArray(fogData.FindProperty("driftingFogRenderers"), new Renderer[] { driftingFog });
+            fogData.ApplyModifiedPropertiesWithoutUndo();
+            fogRegion.ApplyRegion();
+
+            ConfigureDustRegion(farDustController, farDust, false);
+            ConfigureDustRegion(midDustController, midDust, true);
 
             PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
         }
@@ -393,9 +392,8 @@ public static class DarkFogAtmosphereSetupEditor
 
     private static void ConfigureMaterialDefaults(
         Material background,
-        Material farFog,
-        Material midFog,
-        Material nearFog,
+        Material staticFog,
+        Material driftingFog,
         Material ambientDust,
         Material farSilhouette,
         Material midSilhouette,
@@ -408,9 +406,8 @@ public static class DarkFogAtmosphereSetupEditor
         background.SetFloat("_Brightness", 1f);
         background.SetFloat("_Contrast", 1.08f);
 
-        ConfigureFogMaterial(farFog, new Color(0.06f, 0.22f, 0.45f, 1f), 0.22f, 2.4f, 0.42f);
-        ConfigureFogMaterial(midFog, new Color(0.06f, 0.38f, 0.58f, 1f), 0.22f, 3.2f, 0.56f);
-        ConfigureFogMaterial(nearFog, new Color(0.08f, 0.52f, 0.65f, 1f), 0.26f, 4.1f, 0.68f);
+        ConfigureFogMaterial(staticFog, new Color(0.05f, 0.28f, 0.50f, 1f), 0.18f, 2.5f, 0.44f);
+        ConfigureFogMaterial(driftingFog, new Color(0.07f, 0.46f, 0.62f, 1f), 0.20f, 3.8f, 0.64f);
         ambientDust.SetFloat("_Softness", 0.28f);
 
         farSilhouette.SetColor("_Tint", new Color(0.018f, 0.075f, 0.16f, 0.50f));
@@ -432,6 +429,30 @@ public static class DarkFogAtmosphereSetupEditor
         EditorUtility.SetDirty(material);
     }
 
+    private static void ConfigureDustRegion(
+        AmbientDustRegion2D controller,
+        ParticleSystem particles,
+        bool midLayer)
+    {
+        SerializedObject data = new SerializedObject(controller);
+        data.FindProperty("dustParticles").objectReferenceValue = particles;
+        data.FindProperty("depth").enumValueIndex = midLayer ? 1 : 0;
+        data.FindProperty("baseParticleCount").intValue = midLayer ? 38 : 70;
+        data.FindProperty("regionSize").vector2Value = midLayer ? new Vector2(30f, 16f) : new Vector2(34f, 18f);
+        data.FindProperty("alpha").floatValue = midLayer ? 0.21f : 0.14f;
+        data.FindProperty("sizeMin").floatValue = midLayer ? 0.035f : 0.018f;
+        data.FindProperty("sizeMax").floatValue = midLayer ? 0.095f : 0.055f;
+        data.FindProperty("lifetimeMin").floatValue = midLayer ? 7.2f : 10f;
+        data.FindProperty("lifetimeMax").floatValue = midLayer ? 12.8f : 18f;
+        data.FindProperty("driftSpeed").floatValue = midLayer ? 0.035f : 0.018f;
+        data.FindProperty("randomSpeedMin").floatValue = midLayer ? 0.015f : 0.005f;
+        data.FindProperty("randomSpeedMax").floatValue = midLayer ? 0.075f : 0.035f;
+        data.FindProperty("noiseStrength").floatValue = midLayer ? 0.055f : 0.036f;
+        data.FindProperty("sortingOrder").intValue = midLayer ? -42 : -80;
+        data.ApplyModifiedPropertiesWithoutUndo();
+        controller.ApplyRegion();
+    }
+
     private static ParticleSystem CreateDustParticleSystem(
         Transform parent,
         string name,
@@ -448,7 +469,7 @@ public static class DarkFogAtmosphereSetupEditor
         main.loop = true;
         main.prewarm = true;
         main.playOnAwake = true;
-        main.simulationSpace = ParticleSystemSimulationSpace.Local;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
 
         ParticleSystemRenderer renderer = particles.GetComponent<ParticleSystemRenderer>();
         renderer.sharedMaterial = material;
