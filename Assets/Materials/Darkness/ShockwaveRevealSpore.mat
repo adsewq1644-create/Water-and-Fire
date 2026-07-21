@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: DarkFogMidSilhouette
-  m_Shader: {fileID: 4800000, guid: 0daaaae3b8f80404b9a8aa348b4580de, type: 3}
+  m_Name: ShockwaveRevealSpore
+  m_Shader: {fileID: 4800000, guid: bffb9d8ff1bf80e47a7cda1cb981acc3, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -25,9 +25,7 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _Brightness: 1
-    - _Contrast: 0.92
-    m_Colors:
-    - _Tint: {r: 0.001, g: 0.004, b: 0.022, a: 0.96}
+    - _Softness: 0.32
+    m_Colors: []
   m_BuildTextureStacks: []
   m_AllowLocking: 1

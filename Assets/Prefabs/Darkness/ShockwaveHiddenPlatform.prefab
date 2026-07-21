@@ -90,37 +90,54 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7d1fb8fef1584e04879117dc52f8fb68, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShockwaveHiddenPlatform2D
   silhouetteRenderers:
   - {fileID: 100012}
   visualRoot: {fileID: 100011}
-  dustParticles: {fileID: 0}
-  revealDuration: 2.5
-  fadeInDuration: 0.1
-  fadeOutDuration: 0.4
-  hiddenAlpha: 0
-  revealedAlpha: 0.65
-  silhouetteColor: {r: 0.16, g: 0.18, b: 0.22, a: 1}
-  startHidden: 1
-  shakeDuration: 0.35
-  shakeAmplitude: 0.06
-  shakeCurve:
+  platformColliders:
+  - {fileID: 100002}
+  particleMaterial: {fileID: 2100000, guid: 4da844ed502a5fe4e84c1df0afcec736, type: 2}
+  revealDuration: 0.8
+  fadeInTime: 0.08
+  fadeOutTime: 0.32
+  minimumRevealInterval: 0.08
+  idleSilhouetteAlpha: 0
+  edgeGlowColor: {r: 0.42, g: 1.15, b: 2.1, a: 1}
+  edgeGlowAlpha: 0.72
+  edgeGlowWidth: 0.075
+  edgeGlowJitter: 0.035
+  edgeGlowTopOnly: 1
+  edgeGlowCornerBoost: 1.65
+  particleColor: {r: 0.62, g: 0.88, b: 2.2, a: 1}
+  particleAlpha: 0.82
+  particleCount: 38
+  particleLifetimeMin: 0.38
+  particleLifetimeMax: 0.85
+  particleSizeMin: 0.025
+  particleSizeMax: 0.085
+  particleSpeedMin: 0.08
+  particleSpeedMax: 0.38
+  particleSpread: 0.48
+  particleNoiseStrength: 0.18
+  edgeParticleMultiplier: 1
+  cornerParticleMultiplier: 2.2
+  distanceFalloffCurve:
     serializedVersion: 2
     m_Curve:
     - serializedVersion: 3
       time: 0
-      value: 1
+      value: 0
       inSlope: 0
-      outSlope: -1
+      outSlope: 0
       tangentMode: 0
       weightedMode: 0
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
       time: 1
-      value: 0
-      inSlope: -1
+      value: 1
+      inSlope: 0
       outSlope: 0
       tangentMode: 0
       weightedMode: 0
@@ -129,6 +146,10 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  minIntensity: 0.22
+  maxIntensity: 1
+  particleSortingOrder: 4
+  showEdgeGizmos: 1
 --- !u!1 &100010
 GameObject:
   m_ObjectHideFlags: 0

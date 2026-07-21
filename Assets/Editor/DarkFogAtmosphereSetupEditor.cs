@@ -13,9 +13,11 @@ public static class DarkFogAtmosphereSetupEditor
     private const string MaterialFolder = "Assets/Materials/Darkness/Atmosphere";
     private const string DemoSceneFolder = "Assets/Scenes/Demos";
     private const string PrefabPath = PrefabFolder + "/DarkFogAtmosphere.prefab";
+    private const string FogPrefabPath = PrefabFolder + "/FogRegion.prefab";
+    private const string DustPrefabPath = PrefabFolder + "/AmbientDustRegion.prefab";
     private const string DemoScenePath = DemoSceneFolder + "/DarkFogAtmosphereDemo.unity";
 
-    [MenuItem("Tools/Water and Fire/Create Dark Fog Atmosphere")]
+    [MenuItem("Tools/Water and Fire/Create Regional Atmosphere Prefabs")]
     public static void CreateAtmospherePackage()
     {
         EnsureFolder("Assets/Prefabs/Darkness", "Atmosphere");
@@ -36,12 +38,6 @@ public static class DarkFogAtmosphereSetupEditor
         Material ambientDustMaterial = CreateOrUpdateMaterial(
             MaterialFolder + "/AmbientDust.mat",
             "WaterAndFire/AmbientDust2D");
-        Material farSilhouetteMaterial = CreateOrUpdateMaterial(
-            MaterialFolder + "/DarkFogFarSilhouette.mat",
-            "WaterAndFire/DarkFogSilhouette2D");
-        Material midSilhouetteMaterial = CreateOrUpdateMaterial(
-            MaterialFolder + "/DarkFogMidSilhouette.mat",
-            "WaterAndFire/DarkFogSilhouette2D");
         Material demoGameplayMaterial = CreateOrUpdateMaterial(
             MaterialFolder + "/DarkFogDemoGameplay.mat",
             "WaterAndFire/DarkFogSilhouette2D");
@@ -54,40 +50,26 @@ public static class DarkFogAtmosphereSetupEditor
             staticFogMaterial,
             driftingFogMaterial,
             ambientDustMaterial,
-            farSilhouetteMaterial,
-            midSilhouetteMaterial,
             demoGameplayMaterial,
             demoMarkerMaterial);
 
-        CreateAtmospherePrefab(
-            backgroundMaterial,
-            staticFogMaterial,
-            driftingFogMaterial,
-            ambientDustMaterial,
-            farSilhouetteMaterial,
-            midSilhouetteMaterial);
+        CreateAtmospherePrefab(backgroundMaterial);
+        CreateFogRegionPrefab(staticFogMaterial, driftingFogMaterial);
+        CreateAmbientDustRegionPrefab(ambientDustMaterial);
         CreateDemoScene(demoGameplayMaterial, demoMarkerMaterial);
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        Debug.Log("Dark fog atmosphere prefab and isolated demo scene were created.");
+        Debug.Log("Regional atmosphere, fog, ambient dust prefabs, and the isolated demo scene were created.");
     }
 
-    private static void CreateAtmospherePrefab(
-        Material backgroundMaterial,
-        Material staticFogMaterial,
-        Material driftingFogMaterial,
-        Material ambientDustMaterial,
-        Material farSilhouetteMaterial,
-        Material midSilhouetteMaterial)
+    private static void CreateAtmospherePrefab(Material backgroundMaterial)
     {
-        GameObject root = new GameObject("EnvironmentRegion_FogArea");
+        GameObject root = new GameObject("DarkFogAtmosphere");
         try
         {
             DarkFogAtmosphere2D atmosphere = root.AddComponent<DarkFogAtmosphere2D>();
             Transform backgroundRoot = CreateGroup(root.transform, "BackgroundRoot", 0f);
-            Transform fogRoot = CreateGroup(root.transform, "FogRoot", 0f);
-            Transform dustRoot = CreateGroup(root.transform, "AmbientDustRoot", 0f);
 
             MeshRenderer background = CreateQuad(
                 backgroundRoot,
@@ -97,13 +79,33 @@ public static class DarkFogAtmosphereSetupEditor
                 backgroundMaterial,
                 -100);
 
-            Transform farSilhouetteGroup = CreateGroup(backgroundRoot, "FarSilhouettes", 4f);
-            CreateForestSilhouettes(farSilhouetteGroup, farSilhouetteMaterial, true, -88);
-            Transform midSilhouetteGroup = CreateGroup(backgroundRoot, "MidSilhouettes", 2.8f);
-            CreateForestSilhouettes(midSilhouetteGroup, midSilhouetteMaterial, false, -68);
+            Transform farSilhouetteRoot = CreateGroup(backgroundRoot, "FarSilhouettes", 4f);
+            Transform midSilhouetteRoot = CreateGroup(backgroundRoot, "MidSilhouettes", 2.8f);
 
-            FogRegion2D fogRegion = fogRoot.gameObject.AddComponent<FogRegion2D>();
-            Transform staticFogGroup = CreateGroup(fogRoot, "StaticFog", 4.2f);
+            SerializedObject data = new SerializedObject(atmosphere);
+            data.FindProperty("backgroundRenderer").objectReferenceValue = background;
+            data.FindProperty("farSilhouetteRoot").objectReferenceValue = farSilhouetteRoot;
+            data.FindProperty("midSilhouetteRoot").objectReferenceValue = midSilhouetteRoot;
+            SetRendererArray(data.FindProperty("farSilhouetteRenderers"), System.Array.Empty<Renderer>());
+            SetRendererArray(data.FindProperty("midSilhouetteRenderers"), System.Array.Empty<Renderer>());
+            data.ApplyModifiedPropertiesWithoutUndo();
+            atmosphere.ApplyAtmosphere();
+
+            PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
+        }
+        finally
+        {
+            Object.DestroyImmediate(root);
+        }
+    }
+
+    private static void CreateFogRegionPrefab(Material staticFogMaterial, Material driftingFogMaterial)
+    {
+        GameObject root = new GameObject("FogRegion");
+        try
+        {
+            FogRegion2D fogRegion = root.AddComponent<FogRegion2D>();
+            Transform staticFogGroup = CreateGroup(root.transform, "StaticFog", 4.2f);
             MeshRenderer staticFog = CreateQuad(
                 staticFogGroup,
                 "StaticFog_Region",
@@ -111,7 +113,7 @@ public static class DarkFogAtmosphereSetupEditor
                 new Vector3(58f, 28f, 1f),
                 staticFogMaterial,
                 -78);
-            Transform driftingFogGroup = CreateGroup(fogRoot, "DriftingFog", 2.2f);
+            Transform driftingFogGroup = CreateGroup(root.transform, "DriftingFog", 2.2f);
             MeshRenderer driftingFog = CreateQuad(
                 driftingFogGroup,
                 "DriftingFog_Region",
@@ -120,7 +122,26 @@ public static class DarkFogAtmosphereSetupEditor
                 driftingFogMaterial,
                 -52);
 
-            Transform farDustRegion = CreateGroup(dustRoot, "FarDustRegion", 7f);
+            SerializedObject fogData = new SerializedObject(fogRegion);
+            SetRendererArray(fogData.FindProperty("staticFogRenderers"), new Renderer[] { staticFog });
+            SetRendererArray(fogData.FindProperty("driftingFogRenderers"), new Renderer[] { driftingFog });
+            fogData.ApplyModifiedPropertiesWithoutUndo();
+            fogRegion.ApplyRegion();
+
+            PrefabUtility.SaveAsPrefabAsset(root, FogPrefabPath);
+        }
+        finally
+        {
+            Object.DestroyImmediate(root);
+        }
+    }
+
+    private static void CreateAmbientDustRegionPrefab(Material ambientDustMaterial)
+    {
+        GameObject root = new GameObject("AmbientDustRegion");
+        try
+        {
+            Transform farDustRegion = CreateGroup(root.transform, "FarDustRegion", 7f);
             ParticleSystem farDust = CreateDustParticleSystem(
                 farDustRegion,
                 "FarDustParticles",
@@ -129,7 +150,7 @@ public static class DarkFogAtmosphereSetupEditor
                 0f);
             AmbientDustRegion2D farDustController = farDustRegion.gameObject.AddComponent<AmbientDustRegion2D>();
 
-            Transform midDustRegion = CreateGroup(dustRoot, "MidDustRegion", 2f);
+            Transform midDustRegion = CreateGroup(root.transform, "MidDustRegion", 2f);
             ParticleSystem midDust = CreateDustParticleSystem(
                 midDustRegion,
                 "MidDustParticles",
@@ -138,23 +159,10 @@ public static class DarkFogAtmosphereSetupEditor
                 0f);
             AmbientDustRegion2D midDustController = midDustRegion.gameObject.AddComponent<AmbientDustRegion2D>();
 
-            SerializedObject data = new SerializedObject(atmosphere);
-            data.FindProperty("backgroundRenderer").objectReferenceValue = background;
-            SetRendererArray(data.FindProperty("farSilhouetteRenderers"), farSilhouetteGroup.GetComponentsInChildren<Renderer>(true));
-            SetRendererArray(data.FindProperty("midSilhouetteRenderers"), midSilhouetteGroup.GetComponentsInChildren<Renderer>(true));
-            data.ApplyModifiedPropertiesWithoutUndo();
-            atmosphere.ApplyAtmosphere();
-
-            SerializedObject fogData = new SerializedObject(fogRegion);
-            SetRendererArray(fogData.FindProperty("staticFogRenderers"), new Renderer[] { staticFog });
-            SetRendererArray(fogData.FindProperty("driftingFogRenderers"), new Renderer[] { driftingFog });
-            fogData.ApplyModifiedPropertiesWithoutUndo();
-            fogRegion.ApplyRegion();
-
             ConfigureDustRegion(farDustController, farDust, false);
             ConfigureDustRegion(midDustController, midDust, true);
 
-            PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
+            PrefabUtility.SaveAsPrefabAsset(root, DustPrefabPath);
         }
         finally
         {
@@ -198,15 +206,23 @@ public static class DarkFogAtmosphereSetupEditor
             globalLight.lightType = Light2D.LightType.Global;
             globalLight.intensity = 1f;
 
-            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
-            if (prefab == null)
+            GameObject atmospherePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+            GameObject fogPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(FogPrefabPath);
+            GameObject dustPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DustPrefabPath);
+            if (atmospherePrefab == null || fogPrefab == null || dustPrefab == null)
             {
-                throw new System.InvalidOperationException("DarkFogAtmosphere prefab could not be loaded.");
+                throw new System.InvalidOperationException("One or more regional atmosphere prefabs could not be loaded.");
             }
 
-            GameObject atmosphere = (GameObject)PrefabUtility.InstantiatePrefab(prefab, demoScene);
+            GameObject atmosphere = (GameObject)PrefabUtility.InstantiatePrefab(atmospherePrefab, demoScene);
+            GameObject fog = (GameObject)PrefabUtility.InstantiatePrefab(fogPrefab, demoScene);
+            GameObject dust = (GameObject)PrefabUtility.InstantiatePrefab(dustPrefab, demoScene);
             atmosphere.transform.position = Vector3.zero;
+            fog.transform.position = Vector3.zero;
+            dust.transform.position = Vector3.zero;
             SetLayerRecursively(atmosphere, 31);
+            SetLayerRecursively(fog, 31);
+            SetLayerRecursively(dust, 31);
 
             GameObject readability = new GameObject("Demo_GameplayReadability");
             CreateQuad(readability.transform, "Platform_Left", new Vector3(-6.5f, -4.8f, 0f), new Vector3(5.5f, 0.55f, 1f), gameplayMaterial, 0);
@@ -234,99 +250,6 @@ public static class DarkFogAtmosphereSetupEditor
                 }
             }
         }
-    }
-
-    private static void CreateForestSilhouettes(Transform parent, Material material, bool farLayer, int sortingOrder)
-    {
-        float[] xPositions = farLayer
-            ? new[] { -25f, -19f, -13.5f, -7f, -1f, 5.5f, 12f, 18.5f, 24f }
-            : new[] { -24f, -15.5f, -8f, 1.5f, 10f, 17f, 24.5f };
-
-        for (int i = 0; i < xPositions.Length; i++)
-        {
-            float height = farLayer ? 22f + i % 3 * 1.6f : 24f + i % 2 * 2f;
-            float width = farLayer ? 1.15f + i % 2 * 0.25f : 1.8f + i % 3 * 0.35f;
-            float bend = ((i % 4) - 1.5f) * (farLayer ? 0.8f : 1.2f);
-            Transform tree = CreateGroup(parent, (farLayer ? "FarTree_" : "MidTree_") + (i + 1).ToString("00"), 0f);
-            tree.localPosition = new Vector3(xPositions[i], 0f, 0f);
-
-            CreateTrunk(tree, "Trunk", height, width, bend, material, sortingOrder);
-            if (i % 2 == 1)
-            {
-                CreateBranch(tree, "Branch_Left", new Vector3(bend * 0.3f, -1f + height * 0.17f, 0f), new Vector3(-3.8f, 4.4f, 0f), width * 0.45f, material, sortingOrder);
-            }
-            if (i % 3 != 0)
-            {
-                CreateBranch(tree, "Branch_Right", new Vector3(bend * 0.55f, 1f + height * 0.24f, 0f), new Vector3(3.3f, 4.8f, 0f), width * 0.38f, material, sortingOrder);
-            }
-        }
-
-        CreateQuad(parent, farLayer ? "FarGroundMass" : "MidGroundMass", new Vector3(0f, -10.5f, 0f), new Vector3(62f, farLayer ? 3.8f : 4.8f, 1f), material, sortingOrder);
-    }
-
-    private static void CreateTrunk(
-        Transform parent,
-        string name,
-        float height,
-        float width,
-        float bend,
-        Material material,
-        int sortingOrder)
-    {
-        LineRenderer line = CreateLine(parent, name, material, sortingOrder, width, width * 0.48f);
-        line.positionCount = 5;
-        line.SetPositions(new[]
-        {
-            new Vector3(0f, -10f, 0f),
-            new Vector3(bend * 0.12f, -10f + height * 0.28f, 0f),
-            new Vector3(bend * 0.42f, -10f + height * 0.55f, 0f),
-            new Vector3(bend * 0.72f, -10f + height * 0.80f, 0f),
-            new Vector3(bend, -10f + height, 0f)
-        });
-    }
-
-    private static void CreateBranch(
-        Transform parent,
-        string name,
-        Vector3 start,
-        Vector3 direction,
-        float width,
-        Material material,
-        int sortingOrder)
-    {
-        LineRenderer line = CreateLine(parent, name, material, sortingOrder, width, width * 0.35f);
-        line.positionCount = 3;
-        line.SetPositions(new[]
-        {
-            start,
-            start + direction * 0.55f + Vector3.up * 0.45f,
-            start + direction
-        });
-    }
-
-    private static LineRenderer CreateLine(
-        Transform parent,
-        string name,
-        Material material,
-        int sortingOrder,
-        float startWidth,
-        float endWidth)
-    {
-        GameObject lineObject = new GameObject(name);
-        lineObject.transform.SetParent(parent, false);
-        LineRenderer line = lineObject.AddComponent<LineRenderer>();
-        line.sharedMaterial = material;
-        line.useWorldSpace = false;
-        line.alignment = LineAlignment.View;
-        line.textureMode = LineTextureMode.Stretch;
-        line.numCapVertices = 3;
-        line.numCornerVertices = 3;
-        line.startWidth = startWidth;
-        line.endWidth = endWidth;
-        line.sortingOrder = sortingOrder;
-        line.shadowCastingMode = ShadowCastingMode.Off;
-        line.receiveShadows = false;
-        return line;
     }
 
     private static MeshRenderer CreateQuad(
@@ -395,8 +318,6 @@ public static class DarkFogAtmosphereSetupEditor
         Material staticFog,
         Material driftingFog,
         Material ambientDust,
-        Material farSilhouette,
-        Material midSilhouette,
         Material demoGameplay,
         Material demoMarker)
     {
@@ -410,8 +331,6 @@ public static class DarkFogAtmosphereSetupEditor
         ConfigureFogMaterial(driftingFog, new Color(0.07f, 0.46f, 0.62f, 1f), 0.20f, 3.8f, 0.64f);
         ambientDust.SetFloat("_Softness", 0.28f);
 
-        farSilhouette.SetColor("_Tint", new Color(0.018f, 0.075f, 0.16f, 0.50f));
-        midSilhouette.SetColor("_Tint", new Color(0.001f, 0.004f, 0.022f, 0.96f));
         demoGameplay.SetColor("_Tint", new Color(0.055f, 0.085f, 0.12f, 1f));
         demoMarker.SetColor("_Tint", new Color(0.30f, 0.90f, 0.92f, 1f));
     }
