@@ -6,18 +6,6 @@ using UnityEngine.AI;
 [RequireComponent(typeof(Rigidbody2D), typeof(NavMeshAgent))]
 public sealed class BatNavMeshMotor2D : MonoBehaviour
 {
-    private static readonly Vector2[] DestinationSampleDirections =
-    {
-        Vector2.up,
-        Vector2.right,
-        Vector2.down,
-        Vector2.left,
-        new Vector2(1f, 1f).normalized,
-        new Vector2(1f, -1f).normalized,
-        new Vector2(-1f, -1f).normalized,
-        new Vector2(-1f, 1f).normalized
-    };
-
     public enum NavigationMode
     {
         Stopped,
@@ -101,6 +89,7 @@ public sealed class BatNavMeshMotor2D : MonoBehaviour
     private float totalFailureElapsed;
     private float avoidanceHoldRemaining;
     private float lastPathRequestTime = float.NegativeInfinity;
+    private float navigationPlaneZ;
     private int consecutivePathFailures;
     private int consecutiveRepathsWithoutProgress;
     private int navMeshCalculatePathCount;
@@ -108,6 +97,7 @@ public sealed class BatNavMeshMotor2D : MonoBehaviour
     private int physicsQueryCount;
     private bool destinationRequested;
     private bool destinationReached;
+    private bool hasNavigationPlaneZ;
     private bool chaseNavigationFailed;
     private bool returnNavigationFailed;
     private NavigationMode mode;
@@ -358,6 +348,7 @@ public sealed class BatNavMeshMotor2D : MonoBehaviour
         if (!HasValidPath)
         {
             finalMoveDirection = Vector2.zero;
+            body.linearVelocity = Vector2.zero;
             condition = NavigationCondition.WaitingForPath;
             EvaluateFailure();
             return;
@@ -396,7 +387,15 @@ public sealed class BatNavMeshMotor2D : MonoBehaviour
         }
 
         float wantedDistance = movementSpeed * deltaTime;
-        float allowedDistance = GetAllowedMoveDistance(body.position, selectedDirection, wantedDistance);
+        int safetyMask = condition == NavigationCondition.AvoidingMovingObstacle
+            ? staticObstacleMask.value | movingObstacleMask.value
+            : movingObstacleMask.value;
+        float allowedDistance = GetAllowedMoveDistance(
+            body.position,
+            selectedDirection,
+            wantedDistance,
+            safetyMask);
+
         if (allowedDistance <= 0.0001f)
         {
             finalMoveDirection = Vector2.zero;
@@ -479,133 +478,34 @@ public sealed class BatNavMeshMotor2D : MonoBehaviour
         }
 
         float sampleRadius = mode == NavigationMode.Returning ? homeSampleRadius : targetSampleRadius;
-        if (!TryResolvePathDestination(destination, sampleRadius, out Vector2 sampled))
+        if (!TrySampleNavMeshPoint(destination, sampleRadius, out Vector3 targetNavPosition))
+        {
+            return false;
+        }
+
+        float originSampleRadius = Mathf.Max(navigationRadius * 2f, 0.5f);
+        if (!TrySampleNavMeshPoint(body.position, originSampleRadius, out Vector3 originNavPosition))
         {
             return false;
         }
 
         var filter = GetQueryFilter();
-        Vector3 origin = new Vector3(body.position.x, body.position.y, transform.position.z);
-        Vector3 targetPosition = new Vector3(sampled.x, sampled.y, transform.position.z);
         navMeshCalculatePathCount++;
-        if (!NavMesh.CalculatePath(origin, targetPosition, filter, validationPath) ||
+        if (!NavMesh.CalculatePath(originNavPosition, targetNavPosition, filter, validationPath) ||
             validationPath.status != NavMeshPathStatus.PathComplete)
         {
             return false;
         }
 
         setDestinationCount++;
-        if (!agent.SetDestination(targetPosition))
+        if (!agent.SetDestination(targetNavPosition))
         {
             return false;
         }
 
-        sampledDestination = sampled;
+        sampledDestination = new Vector2(targetNavPosition.x, targetNavPosition.y);
         consecutivePathFailures = 0;
         noValidPathElapsed = 0f;
-        return true;
-    }
-
-    private bool TryResolvePathDestination(Vector2 requested, float radius, out Vector2 sampled)
-    {
-        sampled = requested;
-        float bestSqrDistance = float.PositiveInfinity;
-        bool found = TryEvaluateDestinationCandidate(requested, requested, radius, ref sampled, ref bestSqrDistance);
-
-        float ringDistance = radius * 0.65f;
-        float localSampleRadius = Mathf.Max(navigationRadius * 1.5f, radius * 0.45f);
-        for (int i = 0; i < DestinationSampleDirections.Length; i++)
-        {
-            Vector2 searchOrigin = requested + DestinationSampleDirections[i] * ringDistance;
-            if (TryEvaluateDestinationCandidate(
-                requested,
-                searchOrigin,
-                localSampleRadius,
-                ref sampled,
-                ref bestSqrDistance))
-            {
-                found = true;
-            }
-        }
-
-        return found;
-    }
-
-    private bool TryEvaluateDestinationCandidate(
-        Vector2 requested,
-        Vector2 searchOrigin,
-        float sampleRadius,
-        ref Vector2 bestSample,
-        ref float bestSqrDistance)
-    {
-        if (!TrySamplePosition(searchOrigin, sampleRadius, out Vector2 candidate) ||
-            !IsDestinationSampleUsable(requested, candidate))
-        {
-            return false;
-        }
-
-        float sqrDistance = (candidate - requested).sqrMagnitude;
-        if (sqrDistance >= bestSqrDistance)
-        {
-            return false;
-        }
-
-        var filter = GetQueryFilter();
-        Vector3 origin = new Vector3(body.position.x, body.position.y, transform.position.z);
-        Vector3 candidatePosition = new Vector3(candidate.x, candidate.y, transform.position.z);
-        navMeshCalculatePathCount++;
-        if (!NavMesh.CalculatePath(origin, candidatePosition, filter, validationPath) ||
-            validationPath.status != NavMeshPathStatus.PathComplete)
-        {
-            return false;
-        }
-
-        bestSample = candidate;
-        bestSqrDistance = sqrDistance;
-        return true;
-    }
-
-    private bool IsDestinationSampleUsable(Vector2 requested, Vector2 candidate)
-    {
-        physicsQueryCount++;
-        int count = Physics2D.OverlapCircle(
-            candidate,
-            navigationRadius * 0.5f,
-            CreateContactFilter(movingObstacleMask.value),
-            overlapHits);
-        for (int i = 0; i < count; i++)
-        {
-            Collider2D overlap = overlapHits[i];
-            if (overlap != null && !overlap.isTrigger &&
-                overlap.GetComponentInParent<MovingNavObstacle2D>() != null)
-            {
-                return false;
-            }
-        }
-
-        Vector2 offset = candidate - requested;
-        float distance = offset.magnitude;
-        if (distance <= 0.001f)
-        {
-            return true;
-        }
-
-        physicsQueryCount++;
-        count = Physics2D.CircleCast(
-            requested,
-            Mathf.Min(0.05f, navigationRadius * 0.25f),
-            offset / distance,
-            CreateContactFilter(staticObstacleMask.value),
-            castHits,
-            distance);
-        for (int i = 0; i < count; i++)
-        {
-            if (IsBlockingCollider(castHits[i].collider))
-            {
-                return false;
-            }
-        }
-
         return true;
     }
 
@@ -744,23 +644,27 @@ public sealed class BatNavMeshMotor2D : MonoBehaviour
 
     private bool IsDirectionClear(Vector2 origin, Vector2 direction, float distance)
     {
-        return GetAllowedMoveDistance(origin, direction, distance) >= distance - 0.001f;
+        int mask = staticObstacleMask.value | movingObstacleMask.value;
+        return GetAllowedMoveDistance(origin, direction, distance, mask) >= distance - 0.001f;
     }
 
-    private float GetAllowedMoveDistance(Vector2 origin, Vector2 direction, float wantedDistance)
+    private float GetAllowedMoveDistance(
+        Vector2 origin,
+        Vector2 direction,
+        float wantedDistance,
+        int obstacleMask)
     {
-        if (wantedDistance <= 0f)
+        if (wantedDistance <= 0f || obstacleMask == 0)
         {
-            return 0f;
+            return Mathf.Max(0f, wantedDistance);
         }
 
-        int mask = staticObstacleMask.value | movingObstacleMask.value;
         physicsQueryCount++;
         int count = Physics2D.CircleCast(
             origin,
             navigationRadius,
             direction,
-            CreateContactFilter(mask),
+            CreateContactFilter(obstacleMask),
             castHits,
             wantedDistance + finalMoveSkin);
         float allowed = wantedDistance;
@@ -857,7 +761,7 @@ public sealed class BatNavMeshMotor2D : MonoBehaviour
             return true;
         }
 
-        if (!TrySamplePosition(body.position, homeSampleRadius, out Vector2 sampled))
+        if (!TrySampleNavMeshPoint(body.position, homeSampleRadius, out Vector3 sampled))
         {
             return false;
         }
@@ -867,26 +771,40 @@ public sealed class BatNavMeshMotor2D : MonoBehaviour
             agent.enabled = true;
         }
 
-        Vector3 sampledPosition = new Vector3(sampled.x, sampled.y, transform.position.z);
-        if (!agent.Warp(sampledPosition))
+        if (!agent.Warp(sampled))
         {
             return false;
         }
 
-        body.position = sampled;
+        body.position = new Vector2(sampled.x, sampled.y);
         return agent.isOnNavMesh;
     }
 
     private bool TrySamplePosition(Vector2 position, float radius, out Vector2 sampled)
     {
-        Vector3 query = new Vector3(position.x, position.y, transform.position.z);
-        if (NavMesh.SamplePosition(query, out NavMeshHit hit, Mathf.Max(0.01f, radius), GetQueryFilter()))
+        if (TrySampleNavMeshPoint(position, radius, out Vector3 navPosition))
         {
-            sampled = new Vector2(hit.position.x, hit.position.y);
+            sampled = new Vector2(navPosition.x, navPosition.y);
             return true;
         }
 
         sampled = position;
+        return false;
+    }
+
+    private bool TrySampleNavMeshPoint(Vector2 position, float radius, out Vector3 sampled)
+    {
+        float queryZ = hasNavigationPlaneZ ? navigationPlaneZ : transform.position.z;
+        Vector3 query = new Vector3(position.x, position.y, queryZ);
+        if (NavMesh.SamplePosition(query, out NavMeshHit hit, Mathf.Max(0.01f, radius), GetQueryFilter()))
+        {
+            sampled = hit.position;
+            navigationPlaneZ = sampled.z;
+            hasNavigationPlaneZ = true;
+            return true;
+        }
+
+        sampled = query;
         return false;
     }
 
@@ -903,7 +821,8 @@ public sealed class BatNavMeshMotor2D : MonoBehaviour
     {
         if (agent != null && agent.enabled && agent.isOnNavMesh && body != null)
         {
-            agent.nextPosition = new Vector3(body.position.x, body.position.y, transform.position.z);
+            float navZ = hasNavigationPlaneZ ? navigationPlaneZ : agent.nextPosition.z;
+            agent.nextPosition = new Vector3(body.position.x, body.position.y, navZ);
         }
     }
 
@@ -1047,13 +966,6 @@ public sealed class BatNavMeshMotor2D : MonoBehaviour
             Gizmos.DrawLine(current, blockingObstacle.transform.position);
         }
 
-        UnityEditor.Handles.Label(
-            current + Vector3.up * 0.75f,
-            $"{mode} / {condition}\nPath {(agent != null && agent.enabled && agent.isOnNavMesh ? agent.pathStatus.ToString() : "OffMesh")}" +
-            $"\nNoPath {noValidPathElapsed:0.00} NoMove {noProgressElapsed:0.00} Block {dynamicBlockedElapsed:0.00}" +
-            $"\nFail {consecutivePathFailures} Repath {consecutiveRepathsWithoutProgress} Last {lastPathRequestTime:0.00}" +
-            $"\nCalc {navMeshCalculatePathCount} SetDest {setDestinationCount} Physics {physicsQueryCount}" +
-            $"\nRelative {BlockingRelativeVelocity}");
     }
 #endif
 }

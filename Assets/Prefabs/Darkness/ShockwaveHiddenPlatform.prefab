@@ -149,6 +149,7 @@ MonoBehaviour:
   minIntensity: 0.22
   maxIntensity: 1
   particleSortingOrder: 4
+  editorPreviewAlpha: 0.35
   showEdgeGizmos: 1
 --- !u!1 &100010
 GameObject:
@@ -227,7 +228,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 2
   m_Sprite: {fileID: 3992065188525367219, guid: 48de9cd8461b71243afc22baeef9d4b7, type: 3}
-  m_Color: {r: 0.16, g: 0.18, b: 0.22, a: 0}
+  m_Color: {r: 0.16, g: 0.18, b: 0.22, a: 0.35}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0

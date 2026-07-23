@@ -127,7 +127,7 @@ public static class BatNavigationSetupEditor
         coordinatorData.FindProperty("flightBounds").objectReferenceValue = flightCollider;
         coordinatorData.FindProperty("zoneCenter").vector2Value = flightBounds.transform.position;
         coordinatorData.FindProperty("zoneSize").vector2Value = flightCollider.size;
-        coordinatorData.FindProperty("allowSettledObstacleRebuilds").boolValue = false;
+        coordinatorData.FindProperty("allowSettledObstacleRebuilds").boolValue = true;
         coordinatorData.ApplyModifiedPropertiesWithoutUndo();
         coordinator.ApplyZoneBounds();
 
@@ -205,7 +205,9 @@ public static class BatNavigationSetupEditor
             if (moving)
             {
                 Transform movingRoot = FindMovingRoot(root.transform, null);
-                GetOrAdd<MovingNavObstacle2D>((movingRoot != null ? movingRoot : root.transform).gameObject);
+                MovingNavObstacle2D obstacle = GetOrAdd<MovingNavObstacle2D>(
+                    (movingRoot != null ? movingRoot : root.transform).gameObject);
+                ConfigureMovingObstacle(obstacle, false);
             }
 
             PrefabUtility.SaveAsPrefabAsset(root, destinationPath);
@@ -369,6 +371,7 @@ public static class BatNavigationSetupEditor
             for (int i = 0; i < renderers.Length; i++)
             {
                 renderers[i].sortingOrder = -10;
+                renderers[i].color = new Color(0.24f, 0.13f, 0.42f, 1f);
             }
 
             ConfigureVisionComponent(root);
@@ -422,19 +425,27 @@ public static class BatNavigationSetupEditor
             Transform movingRoot = FindMovingRoot(collider.transform, zone.transform);
             if (movingRoot != null)
             {
-                collider.gameObject.layer = movingLayer;
+                bool stateBased = IsStateBasedMovingRoot(movingRoot);
+                collider.gameObject.layer = stateBased ? staticLayer : movingLayer;
+                if (stateBased)
+                {
+                    ConfigureStaticNavMeshModifier(collider);
+                }
                 MovingNavObstacle2D moving = GetOrAdd<MovingNavObstacle2D>(movingRoot.gameObject);
+                ConfigureMovingObstacle(moving, stateBased);
                 EditorUtility.SetDirty(moving);
                 continue;
             }
 
             collider.gameObject.layer = staticLayer;
-            NavMeshModifier modifier = GetOrAdd<NavMeshModifier>(collider.gameObject);
-            modifier.ignoreFromBuild = false;
-            modifier.overrideArea = true;
-            modifier.area = 1;
+            ConfigureStaticNavMeshModifier(collider);
             EditorUtility.SetDirty(collider.gameObject);
         }
+    }
+
+    private static bool IsStateBasedMovingRoot(Transform movingRoot)
+    {
+        return movingRoot != null && movingRoot.GetComponent<VineReleaseBridge2D>() != null;
     }
 
     private static Transform FindMovingRoot(Transform source, Transform zoneRoot)
@@ -576,20 +587,28 @@ public static class BatNavigationSetupEditor
                 for (int bodyIndex = 0; bodyIndex < bodies.Length; bodyIndex++)
                 {
                     Rigidbody2D body = bodies[bodyIndex];
+                    bool stateBased = body.GetComponentInParent<VineReleaseBridge2D>() != null;
                     Collider2D[] colliders = body.GetComponentsInChildren<Collider2D>(true);
                     bool hasSolid = false;
                     for (int colliderIndex = 0; colliderIndex < colliders.Length; colliderIndex++)
                     {
-                        if (!colliders[colliderIndex].isTrigger)
+                        Collider2D collider = colliders[colliderIndex];
+                        if (!collider.isTrigger)
                         {
-                            colliders[colliderIndex].gameObject.layer = LayerMask.NameToLayer(BatMovingLayerName);
+                            collider.gameObject.layer = LayerMask.NameToLayer(
+                                stateBased ? BatStaticLayerName : BatMovingLayerName);
+                            if (stateBased)
+                            {
+                                ConfigureStaticNavMeshModifier(collider);
+                            }
                             hasSolid = true;
                         }
                     }
 
-                    if (hasSolid && body.GetComponent<MovingNavObstacle2D>() == null)
+                    if (hasSolid)
                     {
-                        body.gameObject.AddComponent<MovingNavObstacle2D>();
+                        MovingNavObstacle2D obstacle = GetOrAdd<MovingNavObstacle2D>(body.gameObject);
+                        ConfigureMovingObstacle(obstacle, stateBased);
                         changed = true;
                     }
                 }
@@ -604,6 +623,28 @@ public static class BatNavigationSetupEditor
                 PrefabUtility.UnloadPrefabContents(root);
             }
         }
+    }
+
+    private static void ConfigureMovingObstacle(MovingNavObstacle2D obstacle, bool stateBased)
+    {
+        SerializedObject data = new SerializedObject(obstacle);
+        data.FindProperty("mode").enumValueIndex = stateBased
+            ? (int)MovingNavObstacle2D.ObstacleMode.StateBased
+            : (int)MovingNavObstacle2D.ObstacleMode.Continuous;
+        data.FindProperty("updateNavMeshWhenSettled").boolValue = stateBased;
+        data.FindProperty("movingObstacleLayer").stringValue = BatMovingLayerName;
+        data.FindProperty("settledStaticLayer").stringValue = BatStaticLayerName;
+        data.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(obstacle);
+    }
+
+    private static void ConfigureStaticNavMeshModifier(Collider2D collider)
+    {
+        NavMeshModifier modifier = GetOrAdd<NavMeshModifier>(collider.gameObject);
+        modifier.ignoreFromBuild = false;
+        modifier.overrideArea = true;
+        modifier.area = 1;
+        EditorUtility.SetDirty(modifier);
     }
 
     private static void ConfigureAgent(NavMeshAgent agent)

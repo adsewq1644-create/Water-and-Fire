@@ -20,6 +20,8 @@ public sealed class MovingNavObstacle2D : MonoBehaviour
     [SerializeField] private float settleVelocityThreshold = 0.03f;
     [SerializeField] private float settledDuration = 0.4f;
     [SerializeField] private bool updateNavMeshWhenSettled;
+    [SerializeField] private string movingObstacleLayer = "BatMovingObstacle";
+    [SerializeField] private string settledStaticLayer = "BatStaticObstacle";
 
     [Header("Debug")]
     [SerializeField] private bool showGizmos = true;
@@ -32,6 +34,7 @@ public sealed class MovingNavObstacle2D : MonoBehaviour
     private bool settled;
 
     public static IReadOnlyList<MovingNavObstacle2D> ActiveObstacles => Active;
+    public static event Action<MovingNavObstacle2D> GeometryChangedForOptionalRebuild;
     public static event Action<MovingNavObstacle2D> SettledForOptionalRebuild;
 
     public ObstacleMode Mode => mode;
@@ -56,8 +59,10 @@ public sealed class MovingNavObstacle2D : MonoBehaviour
         CacheReferences();
         previousPosition = GetPosition();
         velocity = Vector2.zero;
-        stationaryElapsed = 0f;
-        settled = false;
+        settled = mode == ObstacleMode.StateBased &&
+            updateNavMeshWhenSettled &&
+            AreObstacleCollidersOnLayer(settledStaticLayer);
+        stationaryElapsed = settled ? settledDuration : 0f;
         if (!Active.Contains(this))
         {
             Active.Add(this);
@@ -87,8 +92,19 @@ public sealed class MovingNavObstacle2D : MonoBehaviour
             settled = false;
         }
 
-        if (!wasSettled && settled && mode == ObstacleMode.StateBased && updateNavMeshWhenSettled)
+        if (mode != ObstacleMode.StateBased || !updateNavMeshWhenSettled)
         {
+            return;
+        }
+
+        if (wasSettled && !settled)
+        {
+            SetObstacleColliderLayer(movingObstacleLayer);
+            GeometryChangedForOptionalRebuild?.Invoke(this);
+        }
+        else if (!wasSettled && settled)
+        {
+            SetObstacleColliderLayer(settledStaticLayer);
             SettledForOptionalRebuild?.Invoke(this);
         }
     }
@@ -150,6 +166,44 @@ public sealed class MovingNavObstacle2D : MonoBehaviour
         return body != null ? body.position : (Vector2)transform.position;
     }
 
+    private bool AreObstacleCollidersOnLayer(string layerName)
+    {
+        int layer = LayerMask.NameToLayer(layerName);
+        if (layer < 0 || obstacleColliders == null || obstacleColliders.Length == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < obstacleColliders.Length; i++)
+        {
+            Collider2D candidate = obstacleColliders[i];
+            if (candidate != null && !candidate.isTrigger && candidate.gameObject.layer != layer)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void SetObstacleColliderLayer(string layerName)
+    {
+        int layer = LayerMask.NameToLayer(layerName);
+        if (layer < 0 || obstacleColliders == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < obstacleColliders.Length; i++)
+        {
+            Collider2D candidate = obstacleColliders[i];
+            if (candidate != null && !candidate.isTrigger)
+            {
+                candidate.gameObject.layer = layer;
+            }
+        }
+    }
+
     private void CacheReferences()
     {
         if (body == null)
@@ -177,6 +231,14 @@ public sealed class MovingNavObstacle2D : MonoBehaviour
     {
         settleVelocityThreshold = Mathf.Max(0f, settleVelocityThreshold);
         settledDuration = Mathf.Max(0f, settledDuration);
+        if (string.IsNullOrWhiteSpace(movingObstacleLayer))
+        {
+            movingObstacleLayer = "BatMovingObstacle";
+        }
+        if (string.IsNullOrWhiteSpace(settledStaticLayer))
+        {
+            settledStaticLayer = "BatStaticObstacle";
+        }
         CacheReferences();
     }
 

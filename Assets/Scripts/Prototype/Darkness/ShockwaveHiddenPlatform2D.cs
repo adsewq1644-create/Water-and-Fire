@@ -69,6 +69,7 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
     [SerializeField] private int particleSortingOrder = 4;
 
     [Header("Debug")]
+    [SerializeField, Range(0f, 1f)] private float editorPreviewAlpha = 0.35f;
     [SerializeField] private bool showEdgeGizmos = true;
 
     private readonly List<EdgeSegment> edgeSegments = new List<EdgeSegment>(32);
@@ -694,6 +695,12 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         minIntensity = Mathf.Clamp01(minIntensity);
         maxIntensity = Mathf.Max(minIntensity, maxIntensity);
         ResolveReferences();
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            SetWholeSurfaceAlpha(editorPreviewAlpha);
+        }
+#endif
     }
 
     private void OnDrawGizmosSelected()

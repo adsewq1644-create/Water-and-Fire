@@ -142,13 +142,14 @@ public static class ShockwaveHiddenPlatformRevealSetupEditor
             SetFloat(serialized, "minIntensity", 0.22f);
             SetFloat(serialized, "maxIntensity", 1f);
             SetInt(serialized, "particleSortingOrder", GetParticleSortingOrder(renderers));
+            SetFloat(serialized, "editorPreviewAlpha", 0.35f);
             SetBool(serialized, "showEdgeGizmos", true);
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             for (int i = 0; i < renderers.Length; i++)
             {
                 Color color = renderers[i].color;
-                color.a = 0f;
+                color.a = 0.35f;
                 renderers[i].color = color;
                 EditorUtility.SetDirty(renderers[i]);
             }

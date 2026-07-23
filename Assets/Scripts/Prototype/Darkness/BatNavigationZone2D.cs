@@ -13,14 +13,16 @@ public sealed class BatNavigationZone2D : MonoBehaviour
 
     [Header("NavMesh")]
     [SerializeField] private NavMeshSurface surface;
-    [SerializeField] private bool allowSettledObstacleRebuilds;
+    [SerializeField] private bool allowSettledObstacleRebuilds = true;
     [SerializeField] private float settledRebuildDelay = 0.15f;
 
     private Coroutine pendingRebuild;
+    private AsyncOperation activeRebuild;
 
     public NavMeshSurface Surface => surface;
     public Vector2 ZoneCenter => zoneCenter;
     public Vector2 ZoneSize => zoneSize;
+    public bool IsRebuilding => activeRebuild != null && !activeRebuild.isDone;
 
     [ContextMenu("Apply Zone Bounds")]
     public void ApplyZoneBounds()
@@ -46,11 +48,13 @@ public sealed class BatNavigationZone2D : MonoBehaviour
 
     private void OnEnable()
     {
+        MovingNavObstacle2D.GeometryChangedForOptionalRebuild += HandleObstacleGeometryChanged;
         MovingNavObstacle2D.SettledForOptionalRebuild += HandleObstacleSettled;
     }
 
     private void OnDisable()
     {
+        MovingNavObstacle2D.GeometryChangedForOptionalRebuild -= HandleObstacleGeometryChanged;
         MovingNavObstacle2D.SettledForOptionalRebuild -= HandleObstacleSettled;
         if (pendingRebuild != null)
         {
@@ -69,24 +73,50 @@ public sealed class BatNavigationZone2D : MonoBehaviour
 
         if (surface != null)
         {
-            surface.BuildNavMesh();
+            if (surface.navMeshData != null)
+            {
+                activeRebuild = surface.UpdateNavMesh(surface.navMeshData);
+            }
+            else
+            {
+                surface.BuildNavMesh();
+                activeRebuild = null;
+            }
         }
     }
 
     private void HandleObstacleSettled(MovingNavObstacle2D obstacle)
     {
+        QueueObstacleRebuild(obstacle);
+    }
+
+    private void HandleObstacleGeometryChanged(MovingNavObstacle2D obstacle)
+    {
+        QueueObstacleRebuild(obstacle);
+    }
+
+    private void QueueObstacleRebuild(MovingNavObstacle2D obstacle)
+    {
         if (!allowSettledObstacleRebuilds || obstacle == null ||
-            !obstacle.UpdateNavMeshWhenSettled || pendingRebuild != null)
+            !obstacle.UpdateNavMeshWhenSettled)
         {
             return;
         }
 
+        if (pendingRebuild != null)
+        {
+            StopCoroutine(pendingRebuild);
+        }
         pendingRebuild = StartCoroutine(RebuildAfterDelay());
     }
 
     private IEnumerator RebuildAfterDelay()
     {
         yield return new WaitForSecondsRealtime(settledRebuildDelay);
+        while (IsRebuilding)
+        {
+            yield return null;
+        }
         pendingRebuild = null;
         RebuildNavMesh();
     }

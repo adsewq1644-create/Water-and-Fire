@@ -89,18 +89,7 @@ MonoBehaviour:
   chaseLeashRadius: 6
   maxChaseDuration: 2.5
   postAttackDelay: 0.3
-  useCurledFlight: 1
-  curlRadius: 0.45
-  curlAngularSpeed: 7
-  curlRadiusSmoothSpeed: 6
-  targetApproachDistance: 1.2
-  targetApproachRadiusMultiplier: 0.15
-  narrowSpaceCurlMultiplier: 0.15
-  movingObstacleCurlMultiplier: 0.1
-  returnCurlMultiplier: 0.6
-  visualCollisionRadius: 0.2
-  clockwiseCurl: 1
-  alternateInitialCurlDirection: 1
+  returnFailureRetryDelay: 0.3
   horizontalKnockback: 8
   verticalKnockback: 4
   inputLockDuration: 0.15

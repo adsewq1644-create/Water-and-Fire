@@ -31,20 +31,7 @@ public sealed class DarkBat2D : MonoBehaviour, IShockwaveContextReceiver
     [SerializeField] private float chaseLeashRadius = 6f;
     [SerializeField] private float maxChaseDuration = 2.5f;
     [SerializeField] private float postAttackDelay = 0.3f;
-
-    [Header("Visual Curled Flight")]
-    [SerializeField] private bool useCurledFlight = true;
-    [SerializeField] private float curlRadius = 0.45f;
-    [SerializeField] private float curlAngularSpeed = 8f;
-    [SerializeField] private float curlRadiusSmoothSpeed = 6f;
-    [SerializeField] private float targetApproachDistance = 1.2f;
-    [SerializeField, Range(0f, 1f)] private float targetApproachRadiusMultiplier = 0.15f;
-    [SerializeField, Range(0f, 1f)] private float narrowSpaceCurlMultiplier = 0.15f;
-    [SerializeField, Range(0f, 1f)] private float movingObstacleCurlMultiplier = 0.1f;
-    [SerializeField, Range(0f, 1f)] private float returnCurlMultiplier = 0.6f;
-    [SerializeField] private float visualCollisionRadius = 0.2f;
-    [SerializeField] private bool clockwiseCurl = true;
-    [SerializeField] private bool alternateInitialCurlDirection = true;
+    [SerializeField] private float returnFailureRetryDelay = 0.3f;
 
     [Header("Knockback")]
     [SerializeField] private float horizontalKnockback = 8f;
@@ -63,13 +50,10 @@ public sealed class DarkBat2D : MonoBehaviour, IShockwaveContextReceiver
 
     private Vector2 homePosition;
     private Vector2 activationOrigin;
-    private Vector2 currentVisualOffset;
     private PlayerCharacter attackTarget;
     private float chaseElapsed;
     private float recoveryElapsed;
-    private float curlPhase;
-    private float currentCurlRadius;
-    private int curlDirectionSign = 1;
+    private float returnFailureRetryElapsed;
     private float nextVisibilityCheckTime;
     private BatState state = BatState.Dormant;
 
@@ -88,14 +72,19 @@ public sealed class DarkBat2D : MonoBehaviour, IShockwaveContextReceiver
         ResolveReferences();
         ConfigurePhysics();
         homePosition = body != null ? body.position : (Vector2)transform.position;
+        ResetVisualOffset();
+        nextVisibilityCheckTime = Time.time + Random.Range(0f, visibilityCheckInterval);
+        SetVisible(false);
+    }
+
+    private void Start()
+    {
+        // NavMeshSurface registers its baked data during OnEnable. Waiting until Start
+        // prevents bats from sampling the world before that data is available.
         if (motor != null)
         {
             motor.InitializeHome(homePosition);
         }
-
-        InitializeCurl(true);
-        nextVisibilityCheckTime = Time.time + Random.Range(0f, visibilityCheckInterval);
-        SetVisible(false);
     }
 
     private void OnEnable()
@@ -127,8 +116,6 @@ public sealed class DarkBat2D : MonoBehaviour, IShockwaveContextReceiver
             SetVisible(IsInsideActiveFireLight());
             nextVisibilityCheckTime = Time.time + visibilityCheckInterval;
         }
-
-        UpdateVisualCurl(Time.deltaTime);
     }
 
     private void FixedUpdate()
@@ -159,9 +146,15 @@ public sealed class DarkBat2D : MonoBehaviour, IShockwaveContextReceiver
         activationOrigin = context.Origin;
         chaseElapsed = 0f;
         recoveryElapsed = 0f;
-        InitializeCurl(false);
+        returnFailureRetryElapsed = 0f;
+        ResetVisualOffset();
         if (motor != null)
         {
+            if (!motor.AgentIsOnNavMesh)
+            {
+                motor.InitializeHome(homePosition);
+            }
+
             motor.BeginChase(attackTarget.transform, chaseSpeed);
         }
 
@@ -177,12 +170,7 @@ public sealed class DarkBat2D : MonoBehaviour, IShockwaveContextReceiver
 
         state = BatState.Dead;
         attackTarget = null;
-        currentVisualOffset = Vector2.zero;
-        currentCurlRadius = 0f;
-        if (visualRoot != null)
-        {
-            visualRoot.localPosition = Vector3.zero;
-        }
+        ResetVisualOffset();
 
         if (motor != null)
         {
@@ -240,11 +228,23 @@ public sealed class DarkBat2D : MonoBehaviour, IShockwaveContextReceiver
 
     private void UpdateReturning()
     {
-        if (motor == null || motor.HasReturnNavigationFailed)
+        if (motor == null)
         {
-            // Stay at the last safe NavMesh position. A later vibration can start a new chase.
             return;
         }
+
+        if (motor.HasReturnNavigationFailed)
+        {
+            returnFailureRetryElapsed += Time.fixedDeltaTime;
+            if (returnFailureRetryElapsed >= returnFailureRetryDelay)
+            {
+                returnFailureRetryElapsed = 0f;
+                motor.BeginReturn(homePosition, returnSpeed);
+            }
+            return;
+        }
+
+        returnFailureRetryElapsed = 0f;
 
         if (!motor.IsDestinationReached)
         {
@@ -253,12 +253,8 @@ public sealed class DarkBat2D : MonoBehaviour, IShockwaveContextReceiver
 
         motor.CompleteAtDestination();
         attackTarget = null;
-        currentVisualOffset = Vector2.zero;
-        currentCurlRadius = 0f;
-        if (visualRoot != null)
-        {
-            visualRoot.localPosition = Vector3.zero;
-        }
+        returnFailureRetryElapsed = 0f;
+        ResetVisualOffset();
 
         state = BatState.Dormant;
     }
@@ -266,6 +262,7 @@ public sealed class DarkBat2D : MonoBehaviour, IShockwaveContextReceiver
     private void BeginReturn()
     {
         attackTarget = null;
+        returnFailureRetryElapsed = 0f;
         if (motor != null)
         {
             motor.BeginReturn(homePosition, returnSpeed);
@@ -274,103 +271,11 @@ public sealed class DarkBat2D : MonoBehaviour, IShockwaveContextReceiver
         state = BatState.Returning;
     }
 
-    private void UpdateVisualCurl(float deltaTime)
+    private void ResetVisualOffset()
     {
-        if (visualRoot == null || visualRoot == transform)
+        if (visualRoot != null && visualRoot != transform)
         {
-            return;
-        }
-
-        bool flying = useCurledFlight && motor != null &&
-            (state == BatState.Chasing || state == BatState.Returning) &&
-            motor.Condition != BatNavMeshMotor2D.NavigationCondition.Failed;
-        float targetRadius = flying ? CalculateTargetCurlRadius() : 0f;
-        float radiusBlend = 1f - Mathf.Exp(-curlRadiusSmoothSpeed * Mathf.Max(0f, deltaTime));
-        currentCurlRadius = Mathf.Lerp(currentCurlRadius, targetRadius, radiusBlend);
-
-        if (flying)
-        {
-            curlPhase += curlAngularSpeed * curlDirectionSign * deltaTime;
-        }
-
-        Vector2 forward = motor != null ? motor.CurrentPathDirection : Vector2.right;
-        if (forward.sqrMagnitude <= 0.0001f)
-        {
-            forward = Vector2.right;
-        }
-
-        forward.Normalize();
-        Vector2 right = new Vector2(-forward.y, forward.x);
-        Vector2 desiredOffset = right * Mathf.Sin(curlPhase) * currentCurlRadius -
-            forward * Mathf.Cos(curlPhase) * currentCurlRadius;
-        currentVisualOffset = motor != null
-            ? motor.ClampVisualOffset(desiredOffset, visualCollisionRadius)
-            : desiredOffset;
-
-        Vector3 localOffset = transform.InverseTransformVector(currentVisualOffset);
-        visualRoot.localPosition = new Vector3(localOffset.x, localOffset.y, 0f);
-    }
-
-    private float CalculateTargetCurlRadius()
-    {
-        float radius = curlRadius;
-        if (state == BatState.Returning)
-        {
-            radius *= returnCurlMultiplier;
-        }
-
-        if (motor.IsBlockedByMovingObstacle)
-        {
-            radius *= movingObstacleCurlMultiplier;
-        }
-
-        Vector2 destination = state == BatState.Chasing && attackTarget != null
-            ? (Vector2)attackTarget.transform.position
-            : motor.HomeNavPosition;
-        float distance = Vector2.Distance(transform.position, destination);
-        if (distance < targetApproachDistance)
-        {
-            float approach = Mathf.InverseLerp(0f, targetApproachDistance, distance);
-            radius *= Mathf.Lerp(targetApproachRadiusMultiplier, 1f, approach);
-        }
-
-        Vector2 unclamped = GetRawOrbitOffset(radius);
-        Vector2 clamped = motor.ClampVisualOffset(unclamped, visualCollisionRadius);
-        if (unclamped.sqrMagnitude > 0.0001f && clamped.sqrMagnitude < unclamped.sqrMagnitude * 0.5f)
-        {
-            radius *= narrowSpaceCurlMultiplier;
-        }
-
-        return radius;
-    }
-
-    private Vector2 GetRawOrbitOffset(float radius)
-    {
-        Vector2 forward = motor != null ? motor.CurrentPathDirection : Vector2.right;
-        if (forward.sqrMagnitude <= 0.0001f)
-        {
-            forward = Vector2.right;
-        }
-
-        forward.Normalize();
-        Vector2 right = new Vector2(-forward.y, forward.x);
-        return right * Mathf.Sin(curlPhase) * radius - forward * Mathf.Cos(curlPhase) * radius;
-    }
-
-    private void InitializeCurl(bool resetPhase)
-    {
-        if (alternateInitialCurlDirection)
-        {
-            curlDirectionSign = (GetInstanceID() & 1) == 0 ? 1 : -1;
-        }
-        else
-        {
-            curlDirectionSign = clockwiseCurl ? -1 : 1;
-        }
-
-        if (resetPhase)
-        {
-            curlPhase = Mathf.Abs(GetInstanceID() % 628) * 0.01f;
+            visualRoot.localPosition = Vector3.zero;
         }
     }
 
@@ -532,11 +437,7 @@ public sealed class DarkBat2D : MonoBehaviour, IShockwaveContextReceiver
         chaseLeashRadius = Mathf.Max(0f, chaseLeashRadius);
         maxChaseDuration = Mathf.Max(0f, maxChaseDuration);
         postAttackDelay = Mathf.Max(0f, postAttackDelay);
-        curlRadius = Mathf.Max(0f, curlRadius);
-        curlAngularSpeed = Mathf.Max(0f, curlAngularSpeed);
-        curlRadiusSmoothSpeed = Mathf.Max(0.01f, curlRadiusSmoothSpeed);
-        targetApproachDistance = Mathf.Max(0.01f, targetApproachDistance);
-        visualCollisionRadius = Mathf.Max(0.01f, visualCollisionRadius);
+        returnFailureRetryDelay = Mathf.Max(0.05f, returnFailureRetryDelay);
         horizontalKnockback = Mathf.Max(0f, horizontalKnockback);
         verticalKnockback = Mathf.Max(0f, verticalKnockback);
         inputLockDuration = Mathf.Max(0f, inputLockDuration);
@@ -568,15 +469,6 @@ public sealed class DarkBat2D : MonoBehaviour, IShockwaveContextReceiver
             Gizmos.DrawLine(transform.position, attackTarget.transform.position);
         }
 
-        if (Application.isPlaying)
-        {
-            Gizmos.color = Color.magenta;
-            Gizmos.DrawLine(transform.position, transform.position + (Vector3)currentVisualOffset);
-        }
-
-        UnityEditor.Handles.Label(
-            transform.position + Vector3.up * 1.1f,
-            $"{state} | Target {(attackTarget != null ? attackTarget.name : "none")} | Curl {currentCurlRadius:0.00}");
     }
 #endif
 }

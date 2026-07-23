@@ -10,7 +10,7 @@ public class FireLightSource : MonoBehaviour
 
     [SerializeField] private Light2D pointLight2D;
     [FormerlySerializedAs("revealRadius")]
-    [SerializeField] private float lightRadius = 7f;
+    [SerializeField] private float lightRadius = 15f;
     [SerializeField] private float lightIntensity = 1f;
     [SerializeField] private Color lightColor = new Color(1f, 0.55f, 0.16f, 1f);
     [SerializeField] private float flickerAmount = 0.08f;
