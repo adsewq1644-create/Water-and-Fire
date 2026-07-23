@@ -26,28 +26,55 @@ public sealed class DarkFogAtmosphere2D : MonoBehaviour
     [SerializeField] private Vector2 backgroundSize = new Vector2(58f, 32f);
     [SerializeField] private Vector2 backgroundOffset = Vector2.zero;
     [SerializeField] private int backgroundSortingOrder = -100;
-    [SerializeField] private Color topColor = new Color(0.002f, 0.008f, 0.045f, 1f);
-    [SerializeField] private Color middleColor = new Color(0.012f, 0.07f, 0.21f, 1f);
-    [SerializeField] private Color bottomColor = new Color(0.02f, 0.35f, 0.56f, 1f);
+    [SerializeField] private Color topColor = new Color(0.018f, 0.055f, 0.13f, 1f);
+    [SerializeField] private Color middleColor = new Color(0.035f, 0.18f, 0.34f, 1f);
+    [SerializeField] private Color bottomColor = new Color(0.08f, 0.43f, 0.58f, 1f);
 
     [Header("Silhouette Layers")]
     [SerializeField] private bool autoCollectSilhouetteRenderers = true;
     [SerializeField] private bool applyAutomaticSilhouetteTint = true;
-    [SerializeField] private Color farSilhouetteTint = new Color(0.18f, 0.34f, 0.52f, 0.55f);
-    [SerializeField] private Color midSilhouetteTint = new Color(0.055f, 0.105f, 0.18f, 0.88f);
+    [SerializeField] private Color farSilhouetteTint = new Color(0.36f, 0.56f, 0.70f, 0.68f);
+    [SerializeField] private Color midSilhouetteTint = new Color(0.16f, 0.32f, 0.48f, 0.90f);
     [SerializeField] private bool applySilhouetteSortingOrders = true;
     [SerializeField] private int farSilhouetteSortingOrder = -88;
     [SerializeField] private int midSilhouetteSortingOrder = -68;
+    [SerializeField] private bool useHierarchyOrderWithinLayer = true;
+    [SerializeField, Min(1)] private int silhouetteSortingOrderStep = 1;
 
     [Header("General")]
-    [SerializeField, Min(0f)] private float overallBrightness = 1f;
-    [SerializeField, Range(0.25f, 2f)] private float overallContrast = 1.08f;
+    [SerializeField, Min(0f)] private float overallBrightness = 1.08f;
+    [SerializeField, Range(0.25f, 2f)] private float overallContrast = 1.03f;
 
     private MaterialPropertyBlock propertyBlock;
+    private int cachedSilhouetteSignature = int.MinValue;
+    private bool applyRequested = true;
+    private bool isApplying;
 
     private void OnEnable()
     {
-        ApplyAtmosphere();
+        applyRequested = true;
+        cachedSilhouetteSignature = int.MinValue;
+    }
+
+    private void Update()
+    {
+        if (applyRequested)
+        {
+            applyRequested = false;
+            ApplyAtmosphere();
+            return;
+        }
+
+        if (Application.isPlaying || !autoCollectSilhouetteRenderers)
+        {
+            return;
+        }
+
+        int signature = CalculateSilhouetteSignature();
+        if (signature != cachedSilhouetteSignature)
+        {
+            ApplyAtmosphere();
+        }
     }
 
     private void OnValidate()
@@ -56,21 +83,37 @@ public sealed class DarkFogAtmosphere2D : MonoBehaviour
         backgroundSize.y = Mathf.Max(0.1f, backgroundSize.y);
         overallBrightness = Mathf.Max(0f, overallBrightness);
         overallContrast = Mathf.Clamp(overallContrast, 0.25f, 2f);
-        ApplyAtmosphere();
+        silhouetteSortingOrderStep = Mathf.Max(1, silhouetteSortingOrderStep);
+        applyRequested = true;
+        cachedSilhouetteSignature = int.MinValue;
     }
 
     [ContextMenu("Apply World-Fixed Background")]
     public void ApplyAtmosphere()
     {
-        EnsurePropertyBlock();
-        if (autoCollectSilhouetteRenderers)
+        if (isApplying)
         {
-            CollectSilhouetteRenderers();
+            return;
         }
 
-        ApplyBackground();
-        ApplySilhouetteLayer(farSilhouetteRenderers, farSilhouetteTint, farSilhouetteSortingOrder);
-        ApplySilhouetteLayer(midSilhouetteRenderers, midSilhouetteTint, midSilhouetteSortingOrder);
+        isApplying = true;
+        try
+        {
+            EnsurePropertyBlock();
+            if (autoCollectSilhouetteRenderers)
+            {
+                CollectSilhouetteRenderers();
+            }
+
+            ApplyBackground();
+            ApplySilhouetteLayer(farSilhouetteRenderers, farSilhouetteTint, farSilhouetteSortingOrder);
+            ApplySilhouetteLayer(midSilhouetteRenderers, midSilhouetteTint, midSilhouetteSortingOrder);
+            cachedSilhouetteSignature = CalculateSilhouetteSignature();
+        }
+        finally
+        {
+            isApplying = false;
+        }
     }
 
     [ContextMenu("Refresh Silhouette Renderers")]
@@ -87,8 +130,15 @@ public sealed class DarkFogAtmosphere2D : MonoBehaviour
             return;
         }
 
-        backgroundRenderer.enabled = showBackground;
-        backgroundRenderer.sortingOrder = backgroundSortingOrder;
+        if (backgroundRenderer.enabled != showBackground)
+        {
+            backgroundRenderer.enabled = showBackground;
+        }
+
+        if (backgroundRenderer.sortingOrder != backgroundSortingOrder)
+        {
+            backgroundRenderer.sortingOrder = backgroundSortingOrder;
+        }
         backgroundRenderer.transform.localPosition = new Vector3(
             backgroundOffset.x,
             backgroundOffset.y,
@@ -128,10 +178,16 @@ public sealed class DarkFogAtmosphere2D : MonoBehaviour
                 continue;
             }
 
-            renderer.enabled = showBackground;
-            if (applySilhouetteSortingOrders)
+            int targetSortingOrder = sortingOrder;
+            if (useHierarchyOrderWithinLayer)
             {
-                renderer.sortingOrder = sortingOrder;
+                // The first renderer in the hierarchy is drawn in front of later siblings.
+                targetSortingOrder += (renderers.Length - 1 - i) * silhouetteSortingOrderStep;
+            }
+
+            if (applySilhouetteSortingOrders && renderer.sortingOrder != targetSortingOrder)
+            {
+                renderer.sortingOrder = targetSortingOrder;
             }
 
             if (!applyAutomaticSilhouetteTint)
@@ -141,10 +197,26 @@ public sealed class DarkFogAtmosphere2D : MonoBehaviour
             }
 
             propertyBlock.Clear();
-            propertyBlock.SetColor(TintId, tint);
-            propertyBlock.SetColor(ColorId, tint);
-            propertyBlock.SetColor(BaseColorId, tint);
-            propertyBlock.SetColor(RendererColorId, tint);
+            if (renderer is SpriteRenderer)
+            {
+                propertyBlock.SetColor(RendererColorId, tint);
+            }
+            else
+            {
+                Material material = renderer.sharedMaterial;
+                if (material != null && material.HasProperty(BaseColorId))
+                {
+                    propertyBlock.SetColor(BaseColorId, tint);
+                }
+                else if (material != null && material.HasProperty(ColorId))
+                {
+                    propertyBlock.SetColor(ColorId, tint);
+                }
+                else
+                {
+                    propertyBlock.SetColor(TintId, tint);
+                }
+            }
             propertyBlock.SetFloat(BrightnessId, overallBrightness);
             propertyBlock.SetFloat(ContrastId, overallContrast);
             renderer.SetPropertyBlock(propertyBlock);
@@ -157,5 +229,33 @@ public sealed class DarkFogAtmosphere2D : MonoBehaviour
         {
             propertyBlock = new MaterialPropertyBlock();
         }
+    }
+
+    private int CalculateSilhouetteSignature()
+    {
+        unchecked
+        {
+            int signature = 17;
+            signature = AddRendererSignature(signature, farSilhouetteRoot);
+            signature = AddRendererSignature(signature, midSilhouetteRoot);
+            return signature;
+        }
+    }
+
+    private static int AddRendererSignature(int signature, Transform root)
+    {
+        if (root == null)
+        {
+            return signature * 31;
+        }
+
+        Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
+        signature = signature * 31 + renderers.Length;
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            signature = signature * 31 + renderers[i].GetInstanceID();
+        }
+
+        return signature;
     }
 }
