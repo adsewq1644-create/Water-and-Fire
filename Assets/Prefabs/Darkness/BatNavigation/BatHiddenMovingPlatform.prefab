@@ -160,6 +160,8 @@ MonoBehaviour:
   settleVelocityThreshold: 0.03
   settledDuration: 0.4
   updateNavMeshWhenSettled: 0
+  movingObstacleLayer: BatMovingObstacle
+  settledStaticLayer: BatStaticObstacle
   showGizmos: 1
 --- !u!114 &2698731594480552948
 MonoBehaviour:
@@ -227,7 +229,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  minIntensity: 0.22
+  minIntensity: 0.35
   maxIntensity: 1
   particleSortingOrder: 2
   editorPreviewAlpha: 0.35

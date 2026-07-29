@@ -125,6 +125,7 @@ public class PlayerCharacter : MonoBehaviour
     private bool jumpInputReleasedAfterLaunch = true;
     private bool diveUsed;
     private bool isDiving;
+    private bool continueDiveAfterImpactThisFrame;
     private bool fullChargeJumpActive;
     private float diveStartY;
     private float lastDiveFallDistance;
@@ -155,6 +156,7 @@ public class PlayerCharacter : MonoBehaviour
     private readonly RaycastHit2D[] groundHits = new RaycastHit2D[6];
     private readonly RaycastHit2D[] sideHits = new RaycastHit2D[6];
     private readonly RaycastHit2D[] projectileSpawnHits = new RaycastHit2D[8];
+    private readonly List<Collider2D> divePassThroughColliders = new List<Collider2D>(2);
     private static PhysicsMaterial2D frictionlessMaterial;
 
     public string PlayerId => playerId;
@@ -194,6 +196,28 @@ public class PlayerCharacter : MonoBehaviour
     public void SuppressDiveLandingStunThisImpact()
     {
         suppressDiveLandingStunThisImpact = true;
+    }
+
+    public void ContinueDiveThroughPlatform(Collider2D platformCollider, float downwardSpeed)
+    {
+        if (!isDiving || body == null || bodyCollider == null || platformCollider == null)
+        {
+            return;
+        }
+
+        SuppressDiveLandingStunThisImpact();
+
+        if (!divePassThroughColliders.Contains(platformCollider))
+        {
+            divePassThroughColliders.Add(platformCollider);
+            Physics2D.IgnoreCollision(bodyCollider, platformCollider, true);
+        }
+
+        grounded = false;
+        lastGroundHit = default;
+        coyoteTimer = 0f;
+        continueDiveAfterImpactThisFrame = true;
+        body.linearVelocity = new Vector2(body.linearVelocity.x, -Mathf.Abs(downwardSpeed));
     }
 
     public void ApplyBouncePlatformVelocity(Vector2 velocity)
@@ -538,6 +562,8 @@ public class PlayerCharacter : MonoBehaviour
 
     private void Update()
     {
+        UpdateDivePassThroughCollisions();
+
         if (externalKnockbackInputLockTimer > 0f)
         {
             externalKnockbackInputLockTimer = Mathf.Max(0f, externalKnockbackInputLockTimer - Time.deltaTime);
@@ -854,7 +880,11 @@ public class PlayerCharacter : MonoBehaviour
         for (int i = 0; i < hitCount; i++)
         {
             var hit = groundHits[i];
-            if (hit.collider != null && !hit.collider.isTrigger && !IsPlayerCollider(hit.collider) && hit.normal.y >= minimumGroundNormalY)
+            if (hit.collider != null &&
+                !hit.collider.isTrigger &&
+                !IsPlayerCollider(hit.collider) &&
+                !divePassThroughColliders.Contains(hit.collider) &&
+                hit.normal.y >= minimumGroundNormalY)
             {
                 grounded = true;
                 lastGroundHit = hit;
@@ -888,6 +918,59 @@ public class PlayerCharacter : MonoBehaviour
     private bool IsPlayerCollider(Collider2D other)
     {
         return other.GetComponentInParent<PlayerCharacter>() != null;
+    }
+
+    private void UpdateDivePassThroughCollisions()
+    {
+        if (divePassThroughColliders.Count == 0 || bodyCollider == null)
+        {
+            return;
+        }
+
+        Bounds playerBounds = bodyCollider.bounds;
+        for (int i = divePassThroughColliders.Count - 1; i >= 0; i--)
+        {
+            Collider2D platformCollider = divePassThroughColliders[i];
+            if (platformCollider == null)
+            {
+                divePassThroughColliders.RemoveAt(i);
+                continue;
+            }
+
+            Bounds platformBounds = platformCollider.bounds;
+            bool horizontallyClear =
+                playerBounds.max.x < platformBounds.min.x - 0.01f ||
+                playerBounds.min.x > platformBounds.max.x + 0.01f;
+            bool fullyBelow = playerBounds.max.y < platformBounds.min.y - 0.01f;
+            bool resetAbove =
+                playerBounds.min.y > platformBounds.max.y + 0.05f &&
+                (body == null || body.linearVelocity.y >= -0.01f);
+
+            if (!horizontallyClear && !fullyBelow && !resetAbove)
+            {
+                continue;
+            }
+
+            Physics2D.IgnoreCollision(bodyCollider, platformCollider, false);
+            divePassThroughColliders.RemoveAt(i);
+        }
+    }
+
+    private void ClearDivePassThroughCollisions()
+    {
+        if (bodyCollider != null)
+        {
+            for (int i = 0; i < divePassThroughColliders.Count; i++)
+            {
+                Collider2D platformCollider = divePassThroughColliders[i];
+                if (platformCollider != null)
+                {
+                    Physics2D.IgnoreCollision(bodyCollider, platformCollider, false);
+                }
+            }
+        }
+
+        divePassThroughColliders.Clear();
     }
 
     private void RememberCurrentSafePosition()
@@ -1066,7 +1149,16 @@ public class PlayerCharacter : MonoBehaviour
         bool landedFromDive = isDiving;
         if (landedFromDive)
         {
+            continueDiveAfterImpactThisFrame = false;
             CompleteDiveLanding(groundHit);
+            if (continueDiveAfterImpactThisFrame)
+            {
+                continueDiveAfterImpactThisFrame = false;
+                grounded = false;
+                lastGroundHit = default;
+                coyoteTimer = 0f;
+                return;
+            }
         }
 
         isChargingJump = false;
@@ -1589,6 +1681,7 @@ public class PlayerCharacter : MonoBehaviour
 
     private void ResetJumpActionState()
     {
+        ClearDivePassThroughCollisions();
         leafBounceCurveActive = false;
         leafBounceAirControlLocked = false;
         isChargingJump = false;
@@ -1596,6 +1689,7 @@ public class PlayerCharacter : MonoBehaviour
         jumpChargeTimer = 0f;
         isDiving = false;
         diveUsed = false;
+        continueDiveAfterImpactThisFrame = false;
         fullChargeJumpActive = false;
         RestoreDefaultGravity();
         jumpConsumedUntilLanding = false;
@@ -1862,6 +1956,7 @@ public class PlayerCharacter : MonoBehaviour
 
     private void OnDestroy()
     {
+        ClearDivePassThroughCollisions();
         DestroyRuntimeMaterial(aimLineMaterial);
     }
 

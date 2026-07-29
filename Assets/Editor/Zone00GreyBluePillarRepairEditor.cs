@@ -13,21 +13,8 @@ internal static class Zone00GreyBluePillarRepairEditor
     private const string DarkGreyBlueArch1Guid = "5cd1b674a9f076c4c8e48700d1e74370";
     private const string GroundGrassStrip1Guid = "469a3d20e304c9a4891212a29c178afc";
     private const string ThinPlatformGuid = "92f427b69cc9a4d4b80d545dcbefaf46";
-    private const string GroundArtSessionKey = "Zone00GroundArt.Ground03To13.v7";
     private const string GroundArtVisualName = "Visual";
     private const float Pillar10HeightRatio = 1547f / 768f;
-
-    [InitializeOnLoadMethod]
-    private static void ScheduleGroundArtOnce()
-    {
-        if (SessionState.GetBool(GroundArtSessionKey, false))
-        {
-            return;
-        }
-
-        SessionState.SetBool(GroundArtSessionKey, true);
-        EditorApplication.delayCall += ApplyThinPlatformArtToZone00Grounds;
-    }
 
     [MenuItem("Tools/Water and Fire/Repair Renamed Zone 00 Art")]
     private static void RepairLoadedScenes()
