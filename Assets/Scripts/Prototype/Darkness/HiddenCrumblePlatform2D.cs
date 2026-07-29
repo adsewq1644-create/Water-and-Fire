@@ -3,7 +3,7 @@ using UnityEngine;
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Collider2D))]
 [RequireComponent(typeof(CrumbleDustWarningVisual2D))]
-public sealed class HiddenCrumblePlatform2D : MonoBehaviour
+public sealed class HiddenCrumblePlatform2D : MonoBehaviour, IDiveImpactReceiver
 {
     private enum PlatformState
     {
@@ -22,6 +22,9 @@ public sealed class HiddenCrumblePlatform2D : MonoBehaviour
     [Header("Contact")]
     [SerializeField, Range(0f, 1f)] private float minimumTopContactNormalY = 0.55f;
 
+    [Header("Dive")]
+    [SerializeField, Min(0f)] private float continueFallSpeed = 18f;
+
     private Collider2D platformCollider;
     private PlatformState state;
     private float stateStartedAt;
@@ -29,13 +32,13 @@ public sealed class HiddenCrumblePlatform2D : MonoBehaviour
     private void Awake()
     {
         ResolveReferences();
-        ResetPlatform();
+        ResetPlatform(false);
     }
 
     private void OnEnable()
     {
         ResolveReferences();
-        ResetPlatform();
+        ResetPlatform(false);
     }
 
     private void Update()
@@ -48,10 +51,30 @@ public sealed class HiddenCrumblePlatform2D : MonoBehaviour
             case PlatformState.Broken:
                 if (Time.time >= stateStartedAt + respawnDelay)
                 {
-                    ResetPlatform();
+                    ResetPlatform(true);
                 }
                 break;
         }
+    }
+
+    public void OnDiveImpact(Vector2 impactPoint, GameObject instigator)
+    {
+        if (state == PlatformState.Broken)
+        {
+            return;
+        }
+
+        PlayerCharacter player = instigator != null
+            ? instigator.GetComponentInParent<PlayerCharacter>()
+            : null;
+        if (player == null || !player.IsAliveLike || !player.IsDiving)
+        {
+            return;
+        }
+
+        ResolveReferences();
+        player.ContinueDiveThroughPlatform(platformCollider, continueFallSpeed);
+        CollapseImmediately(impactPoint);
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
@@ -103,7 +126,18 @@ public sealed class HiddenCrumblePlatform2D : MonoBehaviour
         }
     }
 
-    private void ResetPlatform()
+    private void CollapseImmediately(Vector2 impactPoint)
+    {
+        state = PlatformState.Broken;
+        stateStartedAt = Time.time;
+        warningVisual?.PlayImmediateBreak(impactPoint);
+        if (platformCollider != null)
+        {
+            platformCollider.enabled = false;
+        }
+    }
+
+    private void ResetPlatform(bool playRespawnBurst)
     {
         state = PlatformState.Ready;
         stateStartedAt = 0f;
@@ -112,6 +146,11 @@ public sealed class HiddenCrumblePlatform2D : MonoBehaviour
         {
             platformCollider.enabled = true;
             platformCollider.isTrigger = false;
+        }
+
+        if (playRespawnBurst)
+        {
+            warningVisual?.PlayRespawnBurst();
         }
     }
 
@@ -174,6 +213,7 @@ public sealed class HiddenCrumblePlatform2D : MonoBehaviour
         collapseDelay = Mathf.Max(0.1f, collapseDelay);
         respawnDelay = Mathf.Max(0.1f, respawnDelay);
         minimumTopContactNormalY = Mathf.Clamp01(minimumTopContactNormalY);
+        continueFallSpeed = Mathf.Max(0f, continueFallSpeed);
         ResolveReferences();
     }
 }

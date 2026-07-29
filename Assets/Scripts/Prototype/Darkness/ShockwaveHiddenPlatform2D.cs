@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [DisallowMultipleComponent]
 public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContextReceiver
@@ -60,10 +61,9 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
     [SerializeField, Range(0.1f, 4f)] private float edgeParticleMultiplier = 0.6f;
     [SerializeField, Range(0f, 6f)] private float cornerParticleMultiplier = 1.2f;
 
-    [Header("Distance Response")]
-    [SerializeField] private AnimationCurve distanceFalloffCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
-    [SerializeField, Range(0f, 1f)] private float minIntensity = 0.22f;
-    [SerializeField, Range(0f, 2f)] private float maxIntensity = 1f;
+    [Header("Reveal Strength")]
+    [FormerlySerializedAs("maxIntensity")]
+    [SerializeField, Range(0f, 2f)] private float revealIntensity = 1f;
 
     [Header("Landing")]
     [SerializeField] private bool enableLandingFeedback = true;
@@ -134,20 +134,12 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         }
 
         lastRevealTime = Time.time;
-        float closeness = context.Radius > 0.0001f
-            ? 1f - Mathf.Clamp01(context.Distance / context.Radius)
-            : 1f;
-        float response = distanceFalloffCurve != null
-            ? Mathf.Clamp01(distanceFalloffCurve.Evaluate(closeness))
-            : closeness;
-        float intensity = Mathf.Lerp(minIntensity, maxIntensity, response);
-
-        RevealFromShockwave(revealDuration, intensity);
+        RevealFromShockwave(revealDuration, revealIntensity);
     }
 
     public void RevealFromShockwave(float duration)
     {
-        RevealFromShockwave(duration, maxIntensity);
+        RevealFromShockwave(duration, revealIntensity);
     }
 
     public void ShowLandingBurst()
@@ -1045,8 +1037,7 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         particleSizeMax = Mathf.Max(particleSizeMin, particleSizeMax);
         particleSpeedMin = Mathf.Max(0f, particleSpeedMin);
         particleSpeedMax = Mathf.Max(particleSpeedMin, particleSpeedMax);
-        minIntensity = Mathf.Clamp01(minIntensity);
-        maxIntensity = Mathf.Max(minIntensity, maxIntensity);
+        revealIntensity = Mathf.Max(0f, revealIntensity);
         landingBurstDuration = Mathf.Max(0.05f, landingBurstDuration);
         landingBurstIntensity = Mathf.Max(0f, landingBurstIntensity);
         minimumTopContactNormalY = Mathf.Clamp01(minimumTopContactNormalY);

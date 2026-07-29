@@ -125,6 +125,8 @@ public sealed class CrumbleDustWarningVisual2D : MonoBehaviour
 
     [Header("Dust")]
     [SerializeField, Range(0, 64)] private int landingBurstCount = 14;
+    [SerializeField, Range(0, 64)] private int respawnBurstCount = 7;
+    [SerializeField, Range(0f, 1f)] private float respawnBurstAlphaMultiplier = 0.48f;
     [SerializeField, Min(0f)] private float fallingDustStartRate = 2.5f;
     [SerializeField, Min(0f)] private float fallingDustEndRate = 16f;
     [SerializeField, Min(1f)] private float preBreakDustRateMultiplier = 2.1f;
@@ -232,12 +234,58 @@ public sealed class CrumbleDustWarningVisual2D : MonoBehaviour
 
         EnsureRuntimeHierarchy();
         landingBurstPlayed = true;
-        for (int i = 0; i < landingBurstCount; i++)
+        EmitSurfaceBurst(worldPosition, landingBurstCount, 1f, 1f);
+    }
+
+    public void PlayRespawnBurst()
+    {
+        if (!isActiveAndEnabled || respawnBurstCount <= 0)
+        {
+            return;
+        }
+
+        ResolveReferences();
+        EnsureRuntimeHierarchy();
+        NormalizeVisualRootScale();
+        EmitSurfaceBurst(
+            FindTopCenter(),
+            respawnBurstCount,
+            respawnBurstAlphaMultiplier,
+            0.62f);
+    }
+
+    public void PlayImmediateBreak(Vector2 worldImpactPosition)
+    {
+        if (!isActiveAndEnabled)
+        {
+            return;
+        }
+
+        if (!warningActive)
+        {
+            BeginWarning(Mathf.Max(0.1f, breakAfterimageDuration));
+        }
+
+        preBreakForced = true;
+        SetWarningProgress(1f);
+        EmitImmediateImpactDust(worldImpactPosition);
+        PlayBreakRelease();
+    }
+
+    private void EmitSurfaceBurst(
+        Vector2 worldPosition,
+        int count,
+        float alphaMultiplier,
+        float speedMultiplier)
+    {
+        for (int i = 0; i < count; i++)
         {
             float angle = Mathf.Lerp(25f, 155f, Hash01(emissionSequence++));
             float radians = angle * Mathf.Deg2Rad;
             Vector2 direction = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians));
-            float speed = Mathf.Lerp(0.25f, 0.75f, Hash01(emissionSequence++));
+            float speed =
+                Mathf.Lerp(0.25f, 0.75f, Hash01(emissionSequence++)) *
+                speedMultiplier;
             Vector2 position = worldPosition + RandomDisc(emissionSequence++) * 0.06f;
             EmitWorldParticle(
                 landingBurstParticles,
@@ -245,6 +293,27 @@ public sealed class CrumbleDustWarningVisual2D : MonoBehaviour
                 direction * speed,
                 Mathf.Lerp(outlineParticleSizeMin, outlineParticleSizeMax, Hash01(emissionSequence++)),
                 Mathf.Lerp(0.35f, 0.7f, Hash01(emissionSequence++)),
+                outlineAlpha * alphaMultiplier);
+        }
+    }
+
+    private void EmitImmediateImpactDust(Vector2 worldPosition)
+    {
+        int count = Mathf.Max(6, breakReleaseBurstCount / 3);
+        for (int i = 0; i < count; i++)
+        {
+            float horizontal = Mathf.Lerp(-0.24f, 0.24f, Hash01(emissionSequence++));
+            float fallSpeed = Mathf.Lerp(
+                Mathf.Max(0.45f, fallingDustSpeedMin),
+                Mathf.Max(1.15f, fallingDustSpeedMax),
+                Hash01(emissionSequence++));
+            Vector2 position = worldPosition + RandomDisc(emissionSequence++) * 0.075f;
+            EmitWorldParticle(
+                fallingDustParticles,
+                position,
+                new Vector2(horizontal, -fallSpeed),
+                Mathf.Lerp(fallingDustSizeMin, fallingDustSizeMax, Hash01(emissionSequence++)),
+                Mathf.Lerp(fallingDustLifetimeMin, fallingDustLifetimeMax, Hash01(emissionSequence++)),
                 outlineAlpha);
         }
     }
@@ -1156,6 +1225,9 @@ public sealed class CrumbleDustWarningVisual2D : MonoBehaviour
         outlineParticleSizeMax = Mathf.Max(outlineParticleSizeMin, outlineParticleSizeMax);
         outlineThickness = Mathf.Max(0f, outlineThickness);
         outlineGapAmount = Mathf.Clamp(outlineGapAmount, 0f, 0.8f);
+        landingBurstCount = Mathf.Clamp(landingBurstCount, 0, 64);
+        respawnBurstCount = Mathf.Clamp(respawnBurstCount, 0, 64);
+        respawnBurstAlphaMultiplier = Mathf.Clamp01(respawnBurstAlphaMultiplier);
         fallingDustStartRate = Mathf.Max(0f, fallingDustStartRate);
         fallingDustEndRate = Mathf.Max(fallingDustStartRate, fallingDustEndRate);
         preBreakDustRateMultiplier = Mathf.Max(1f, preBreakDustRateMultiplier);
