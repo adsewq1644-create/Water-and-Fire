@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 100001}
   - component: {fileID: 100002}
   - component: {fileID: 100003}
+  - component: {fileID: 4237453121903479176}
   - component: {fileID: 100006}
   - component: {fileID: 100004}
   - component: {fileID: 200002}
@@ -96,14 +97,134 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   collapseDelay: 2
   respawnDelay: 2
-  slowDustInterval: 0.22
-  fastDustInterval: 0.05
-  horizontalShakeWidth: 0.28
-  slowShakeFrequency: 1.2
-  fastShakeFrequency: 5.5
-  startingDustIntensity: 0.65
-  endingDustIntensity: 1.55
+  warningVisual: {fileID: 4237453121903479176}
   minimumTopContactNormalY: 0.55
+--- !u!114 &4237453121903479176
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4b8c1e3f7a2456ea901bc23d45ef678, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  warningVisualRoot: {fileID: 0}
+  topDustGroup: {fileID: 0}
+  leftDustGroup: {fileID: 0}
+  rightDustGroup: {fileID: 0}
+  bottomDustGroup: {fileID: 0}
+  landingBurstParticles: {fileID: 0}
+  fallingDustParticles: {fileID: 0}
+  platformColliders:
+  - {fileID: 100002}
+  particleMaterial: {fileID: 2100000, guid: 4da844ed502a5fe4e84c1df0afcec736, type: 2}
+  startShakeAmplitude: 0.08
+  endShakeAmplitude: 0.17
+  startShakeFrequency: 2.2
+  endShakeFrequency: 8
+  verticalMotionRatio: 0.15
+  secondaryNoiseAmount: 0.08
+  warningIntensityCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0.68
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1.2
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  shakeAmplitudeCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  shakeFrequencyCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  topIntensityMultiplier: 1
+  sideIntensityMultiplier: 0.65
+  bottomIntensityMultiplier: 0.4
+  dustColor: {r: 1, g: 0.94, b: 0.58, a: 1}
+  outlineAlpha: 0.78
+  outlineParticleSpacing: 0.105
+  outlineParticleSizeMin: 0.035
+  outlineParticleSizeMax: 0.085
+  outlineThickness: 0.025
+  outlineGapAmount: 0.3
+  landingBurstCount: 14
+  fallingDustStartRate: 2.5
+  fallingDustEndRate: 16
+  preBreakDustRateMultiplier: 2.1
+  breakReleaseBurstCount: 26
+  breakAfterimageDuration: 0.7
+  fallingDustLifetimeMin: 0.55
+  fallingDustLifetimeMax: 1.1
+  fallingDustSizeMin: 0.025
+  fallingDustSizeMax: 0.065
+  fallingDustSpeedMin: 0.35
+  fallingDustSpeedMax: 0.9
+  preBreakStartNormalizedTime: 0.72
+  preBreakBlinkCount: 2
+  preBreakBlinkSpeed: 1
+  particleSortingOrder: 5
 --- !u!114 &100006
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -146,16 +267,6 @@ MonoBehaviour:
   particleNoiseStrength: 0.1
   edgeParticleMultiplier: 0.6
   cornerParticleMultiplier: 1.2
-  crumbleDustColor: {r: 1, g: 0.94, b: 0.58, a: 1}
-  crumbleDustAlpha: 0.82
-  crumbleDustCount: 16
-  crumbleDustLifetimeMin: 1.4
-  crumbleDustLifetimeMax: 2.4
-  crumbleDustSizeMin: 0.04
-  crumbleDustSizeMax: 0.11
-  crumbleDustFallSpeedMin: 0.18
-  crumbleDustFallSpeedMax: 0.48
-  crumbleDustSpawnJitter: 0.015
   distanceFalloffCurve:
     serializedVersion: 2
     m_Curve:

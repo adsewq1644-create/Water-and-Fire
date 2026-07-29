@@ -169,6 +169,8 @@ MonoBehaviour:
   landingBurstDuration: 0.7
   landingBurstIntensity: 0.42
   minimumTopContactNormalY: 0.55
+  coopPrimedColor: {r: 0.624, g: 1, b: 1, a: 1}
+  coopPrimedMaxAlpha: 0.48
   particleSortingOrder: 2
   editorPreviewAlpha: 0.35
   showEdgeGizmos: 1

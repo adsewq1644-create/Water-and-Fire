@@ -60,18 +60,6 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
     [SerializeField, Range(0.1f, 4f)] private float edgeParticleMultiplier = 0.6f;
     [SerializeField, Range(0f, 6f)] private float cornerParticleMultiplier = 1.2f;
 
-    [Header("Crumble Dust")]
-    [SerializeField, ColorUsage(true, true)] private Color crumbleDustColor = new Color(1f, 0.94f, 0.58f, 1f);
-    [SerializeField, Range(0f, 1f)] private float crumbleDustAlpha = 0.76f;
-    [SerializeField, Range(1, 64)] private int crumbleDustCount = 6;
-    [SerializeField, Min(0.05f)] private float crumbleDustLifetimeMin = 0.45f;
-    [SerializeField, Min(0.05f)] private float crumbleDustLifetimeMax = 0.9f;
-    [SerializeField, Min(0.005f)] private float crumbleDustSizeMin = 0.036f;
-    [SerializeField, Min(0.005f)] private float crumbleDustSizeMax = 0.11f;
-    [SerializeField, Min(0f)] private float crumbleDustFallSpeedMin = 0.08f;
-    [SerializeField, Min(0f)] private float crumbleDustFallSpeedMax = 0.36f;
-    [SerializeField, Range(0f, 0.2f)] private float crumbleDustSpawnJitter = 0.035f;
-
     [Header("Distance Response")]
     [SerializeField] private AnimationCurve distanceFalloffCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
     [SerializeField, Range(0f, 1f)] private float minIntensity = 0.22f;
@@ -102,7 +90,6 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
     private Color[] baseSilhouetteColors;
     private ParticleSystem edgeGlowParticles;
     private ParticleSystem sporeParticles;
-    private ParticleSystem crumbleDustParticles;
     private Material runtimeParticleMaterial;
     private float lastRevealTime = float.NegativeInfinity;
     private float coopPrimedStartedAt;
@@ -128,7 +115,6 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         coopPrimedVisualApplied = false;
         StopAndClear(edgeGlowParticles);
         StopAndClear(sporeParticles);
-        StopAndClear(crumbleDustParticles);
         SetWholeSurfaceAlpha(idleSilhouetteAlpha);
     }
 
@@ -180,54 +166,6 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
             landingBurstDuration,
             0.65f,
             includeCornerSpores: true);
-    }
-
-    public void EmitCrumbleDust(float intensity, Vector2 visualOffset)
-    {
-        if (!isActiveAndEnabled)
-        {
-            return;
-        }
-
-        PrepareEdgeEffects();
-        if (activeSegments.Count == 0 || crumbleDustParticles == null)
-        {
-            return;
-        }
-
-        float clampedIntensity = Mathf.Max(0f, intensity);
-        int count = Mathf.Clamp(
-            Mathf.RoundToInt(crumbleDustCount * clampedIntensity),
-            1,
-            64);
-        float totalLength = TotalCrumbleSurfaceLength();
-        if (totalLength <= 0.0001f)
-        {
-            return;
-        }
-
-        for (int i = 0; i < count; i++)
-        {
-            EdgeSegment segment = ChooseCrumbleSurfaceByLength(Random.value * totalLength);
-            Vector2 tangent = (segment.End - segment.Start).normalized;
-            Vector2 position = Vector2.Lerp(segment.Start, segment.End, Random.value);
-            position += visualOffset;
-            position += tangent * Random.Range(-crumbleDustSpawnJitter, crumbleDustSpawnJitter);
-
-            float fallSpeed = Random.Range(
-                crumbleDustFallSpeedMin,
-                crumbleDustFallSpeedMax);
-            Vector2 velocity = Vector2.down * fallSpeed;
-
-            EmitParticle(
-                crumbleDustParticles,
-                position,
-                velocity,
-                Random.Range(crumbleDustSizeMin, crumbleDustSizeMax),
-                Random.Range(crumbleDustLifetimeMin, crumbleDustLifetimeMax),
-                crumbleDustColor,
-                crumbleDustAlpha * Mathf.Clamp01(clampedIntensity));
-        }
     }
 
     public void SetOccupiedByPlayer(PlayerCharacter player, bool occupied)
@@ -552,7 +490,7 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
 
     private void EnsureParticleSystems()
     {
-        if (edgeGlowParticles != null && sporeParticles != null && crumbleDustParticles != null)
+        if (edgeGlowParticles != null && sporeParticles != null)
         {
             return;
         }
@@ -568,10 +506,8 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
 
         edgeGlowParticles = FindOrCreateParticleSystem(effectRoot, "SparseEdgeGlow");
         sporeParticles = FindOrCreateParticleSystem(effectRoot, "SurfaceSpores");
-        crumbleDustParticles = FindOrCreateParticleSystem(effectRoot, "CrumbleDust");
         ApplyParticleMaterial(edgeGlowParticles);
         ApplyParticleMaterial(sporeParticles);
-        ApplyParticleMaterial(crumbleDustParticles);
     }
 
     private ParticleSystem FindOrCreateParticleSystem(Transform parent, string objectName)
@@ -651,7 +587,6 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
     {
         ConfigureParticleSystem(edgeGlowParticles, particleNoiseStrength * 0.25f);
         ConfigureParticleSystem(sporeParticles, particleNoiseStrength);
-        ConfigureParticleSystem(crumbleDustParticles, 0f);
     }
 
     private void ConfigureParticleSystem(ParticleSystem particles, float noiseStrength)
@@ -1076,57 +1011,6 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         return activeSegments[activeSegments.Count - 1];
     }
 
-    private float TotalCrumbleSurfaceLength()
-    {
-        float topLength = 0f;
-        for (int i = 0; i < activeSegments.Count; i++)
-        {
-            if (activeSegments[i].IsTop)
-            {
-                topLength += activeSegments[i].Length;
-            }
-        }
-
-        return topLength > 0.0001f ? topLength : TotalActiveLength();
-    }
-
-    private EdgeSegment ChooseCrumbleSurfaceByLength(float distance)
-    {
-        bool hasTopSurface = false;
-        for (int i = 0; i < activeSegments.Count; i++)
-        {
-            if (activeSegments[i].IsTop)
-            {
-                hasTopSurface = true;
-                break;
-            }
-        }
-
-        if (!hasTopSurface)
-        {
-            return ChooseSegmentByLength(distance);
-        }
-
-        EdgeSegment fallback = activeSegments[0];
-        for (int i = 0; i < activeSegments.Count; i++)
-        {
-            EdgeSegment segment = activeSegments[i];
-            if (!segment.IsTop)
-            {
-                continue;
-            }
-
-            fallback = segment;
-            if (distance <= segment.Length)
-            {
-                return segment;
-            }
-            distance -= segment.Length;
-        }
-
-        return fallback;
-    }
-
     private static Vector2 UpwardNormal(Vector2 start, Vector2 end)
     {
         Vector2 direction = (end - start).normalized;
@@ -1161,14 +1045,6 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         particleSizeMax = Mathf.Max(particleSizeMin, particleSizeMax);
         particleSpeedMin = Mathf.Max(0f, particleSpeedMin);
         particleSpeedMax = Mathf.Max(particleSpeedMin, particleSpeedMax);
-        crumbleDustCount = Mathf.Max(1, crumbleDustCount);
-        crumbleDustLifetimeMin = Mathf.Max(0.05f, crumbleDustLifetimeMin);
-        crumbleDustLifetimeMax = Mathf.Max(crumbleDustLifetimeMin, crumbleDustLifetimeMax);
-        crumbleDustSizeMin = Mathf.Max(0.005f, crumbleDustSizeMin);
-        crumbleDustSizeMax = Mathf.Max(crumbleDustSizeMin, crumbleDustSizeMax);
-        crumbleDustFallSpeedMin = Mathf.Max(0f, crumbleDustFallSpeedMin);
-        crumbleDustFallSpeedMax = Mathf.Max(crumbleDustFallSpeedMin, crumbleDustFallSpeedMax);
-        crumbleDustSpawnJitter = Mathf.Max(0f, crumbleDustSpawnJitter);
         minIntensity = Mathf.Clamp01(minIntensity);
         maxIntensity = Mathf.Max(minIntensity, maxIntensity);
         landingBurstDuration = Mathf.Max(0.05f, landingBurstDuration);
