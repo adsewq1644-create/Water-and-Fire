@@ -70,6 +70,11 @@ public class PlayerCharacter : MonoBehaviour
     [SerializeField] private bool shockwaveDelayByDistance = true;
     [SerializeField] private LayerMask shockwaveMask = ~0;
 
+    [Header("Coop Shockwave")]
+    [SerializeField, Min(1f)] private float coopShockwaveRadiusMultiplier = 1.65f;
+    [SerializeField, Min(1f)] private float coopShockwaveDurationMultiplier = 1.25f;
+    [SerializeField, Min(1f)] private float coopShockwaveWidthMultiplier = 1.75f;
+
     [Header("Down Slam Bounce Lock")]
     [SerializeField] private bool useApexPercentDownSlamLock = true;
     [SerializeField, Range(0f, 1f)] private float unlockAtApexTimePercent = 0.35f;
@@ -131,6 +136,7 @@ public class PlayerCharacter : MonoBehaviour
     private float lastDiveFallDistance;
     private float diveLandingStunTimer;
     private bool suppressDiveLandingStunThisImpact;
+    private bool suppressBaseDiveShockwaveThisImpact;
     private float bouncePlatformGroundIgnoreTimer;
     private float downSlamBounceLockTimer;
     private float lastDownSlamBounceLockDuration;
@@ -196,6 +202,28 @@ public class PlayerCharacter : MonoBehaviour
     public void SuppressDiveLandingStunThisImpact()
     {
         suppressDiveLandingStunThisImpact = true;
+    }
+
+    public void SuppressBaseDiveShockwaveThisImpact()
+    {
+        suppressBaseDiveShockwaveThisImpact = true;
+    }
+
+    public void EmitCoopShockwave(Vector2 origin)
+    {
+        if (!isActiveAndEnabled || !IsAliveLike)
+        {
+            return;
+        }
+
+        float radius = shockwaveRadius * Mathf.Max(1f, coopShockwaveRadiusMultiplier);
+        float duration = shockwaveDuration * Mathf.Max(1f, coopShockwaveDurationMultiplier);
+        DispatchShockwave(origin, radius, duration);
+        CreateShockwaveVisual(
+            origin,
+            radius,
+            duration,
+            Mathf.Max(1f, coopShockwaveWidthMultiplier));
     }
 
     public void ContinueDiveThroughPlatform(Collider2D platformCollider, float downwardSpeed)
@@ -1177,8 +1205,13 @@ public class PlayerCharacter : MonoBehaviour
         Vector2 impactPoint = GetImpactPoint(groundHit);
         lastDiveFallDistance = Mathf.Max(0f, diveStartY - impactPoint.y);
         DispatchDiveImpact(groundHit.collider, impactPoint);
-        DispatchShockwave(impactPoint);
-        CreateShockwaveVisual(impactPoint);
+
+        if (!suppressBaseDiveShockwaveThisImpact)
+        {
+            DispatchShockwave(impactPoint, shockwaveRadius, shockwaveDuration);
+            CreateShockwaveVisual(impactPoint, shockwaveRadius, shockwaveDuration, 1f);
+        }
+        suppressBaseDiveShockwaveThisImpact = false;
 
         bool suppressStun = suppressDiveLandingStunThisImpact;
         suppressDiveLandingStunThisImpact = false;
@@ -1218,14 +1251,14 @@ public class PlayerCharacter : MonoBehaviour
         }
     }
 
-    private void DispatchShockwave(Vector2 origin)
+    private void DispatchShockwave(Vector2 origin, float radius, float duration)
     {
-        if (shockwaveRadius <= 0f)
+        if (radius <= 0f)
         {
             return;
         }
 
-        Collider2D[] hits = Physics2D.OverlapCircleAll(origin, shockwaveRadius, shockwaveMask);
+        Collider2D[] hits = Physics2D.OverlapCircleAll(origin, radius, shockwaveMask);
         var invokedReceivers = new HashSet<MonoBehaviour>();
         for (int i = 0; i < hits.Length; i++)
         {
@@ -1248,10 +1281,10 @@ public class PlayerCharacter : MonoBehaviour
 
                 if (behaviour is IShockwaveContextReceiver contextReceiver)
                 {
-                    var context = new ShockwaveContext(origin, this, shockwaveRadius, distance);
-                    if (shockwaveDelayByDistance && shockwaveRadius > 0f)
+                    var context = new ShockwaveContext(origin, this, radius, distance);
+                    if (shockwaveDelayByDistance && radius > 0f)
                     {
-                        float delay = Mathf.Clamp01(distance / shockwaveRadius) * Mathf.Max(0f, shockwaveDuration);
+                        float delay = Mathf.Clamp01(distance / radius) * Mathf.Max(0f, duration);
                         StartCoroutine(DispatchShockwaveAfterDelay(contextReceiver, context, delay));
                     }
                     else
@@ -1261,9 +1294,9 @@ public class PlayerCharacter : MonoBehaviour
                 }
                 else if (behaviour is IShockwaveReceiver receiver)
                 {
-                    if (shockwaveDelayByDistance && shockwaveRadius > 0f)
+                    if (shockwaveDelayByDistance && radius > 0f)
                     {
-                        float delay = Mathf.Clamp01(distance / shockwaveRadius) * Mathf.Max(0f, shockwaveDuration);
+                        float delay = Mathf.Clamp01(distance / radius) * Mathf.Max(0f, duration);
                         StartCoroutine(DispatchShockwaveAfterDelay(receiver, origin, distance, delay));
                     }
                     else
@@ -1303,9 +1336,13 @@ public class PlayerCharacter : MonoBehaviour
         }
     }
 
-    private void CreateShockwaveVisual(Vector2 origin)
+    private void CreateShockwaveVisual(
+        Vector2 origin,
+        float radius,
+        float duration,
+        float widthMultiplier)
     {
-        if (shockwaveDuration <= 0f || shockwaveRadius <= 0f)
+        if (duration <= 0f || radius <= 0f)
         {
             return;
         }
@@ -1318,8 +1355,9 @@ public class PlayerCharacter : MonoBehaviour
         ring.useWorldSpace = true;
         ring.loop = true;
         ring.positionCount = 48;
-        ring.startWidth = 0.045f;
-        ring.endWidth = 0.045f;
+        float ringWidth = 0.045f * Mathf.Max(1f, widthMultiplier);
+        ring.startWidth = ringWidth;
+        ring.endWidth = ringWidth;
         ring.sortingOrder = GetAimLineSortingOrder(24);
         if (spriteRenderer != null)
         {
@@ -1330,17 +1368,22 @@ public class PlayerCharacter : MonoBehaviour
             ring.sharedMaterial = aimLineMaterial;
         }
 
-        StartCoroutine(AnimateShockwaveVisual(ringObject, ring, origin));
+        StartCoroutine(AnimateShockwaveVisual(ringObject, ring, origin, radius, duration));
     }
 
-    private IEnumerator AnimateShockwaveVisual(GameObject ringObject, LineRenderer ring, Vector2 origin)
+    private IEnumerator AnimateShockwaveVisual(
+        GameObject ringObject,
+        LineRenderer ring,
+        Vector2 origin,
+        float targetRadius,
+        float duration)
     {
         float elapsed = 0f;
-        while (elapsed < shockwaveDuration && ring != null)
+        while (elapsed < duration && ring != null)
         {
             elapsed += Time.deltaTime;
-            float t = shockwaveDuration <= 0f ? 1f : Mathf.Clamp01(elapsed / shockwaveDuration);
-            float radius = Mathf.Lerp(0.05f, shockwaveRadius, t);
+            float t = duration <= 0f ? 1f : Mathf.Clamp01(elapsed / duration);
+            float radius = Mathf.Lerp(0.05f, targetRadius, t);
             Color color = new Color(1f, 0.92f, 0.35f, Mathf.Lerp(0.55f, 0f, t));
             ring.startColor = color;
             ring.endColor = color;
@@ -1949,6 +1992,9 @@ public class PlayerCharacter : MonoBehaviour
         diveLandingStun = Mathf.Max(0f, diveLandingStun);
         shockwaveRadius = Mathf.Max(0f, shockwaveRadius);
         shockwaveDuration = Mathf.Max(0f, shockwaveDuration);
+        coopShockwaveRadiusMultiplier = Mathf.Max(1f, coopShockwaveRadiusMultiplier);
+        coopShockwaveDurationMultiplier = Mathf.Max(1f, coopShockwaveDurationMultiplier);
+        coopShockwaveWidthMultiplier = Mathf.Max(1f, coopShockwaveWidthMultiplier);
         unlockAtApexTimePercent = Mathf.Clamp01(unlockAtApexTimePercent);
         minDownSlamBounceLockTime = Mathf.Max(0f, minDownSlamBounceLockTime);
         maxDownSlamBounceLockTime = Mathf.Max(minDownSlamBounceLockTime, maxDownSlamBounceLockTime);

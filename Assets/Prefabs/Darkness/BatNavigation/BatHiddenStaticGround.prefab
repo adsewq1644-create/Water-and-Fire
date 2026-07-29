@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 5524119226349311953}
   - component: {fileID: 936174704862824835}
   - component: {fileID: 2324987645587014113}
+  - component: {fileID: 700000000000000001}
   m_Layer: 9
   m_Name: BatHiddenStaticGround
   m_TagString: SafeGround
@@ -115,30 +116,30 @@ MonoBehaviour:
   platformColliders:
   - {fileID: 2003465228181838326}
   particleMaterial: {fileID: 2100000, guid: 4da844ed502a5fe4e84c1df0afcec736, type: 2}
-  revealDuration: 0.8
+  revealDuration: 2.5
   fadeInTime: 0.08
   fadeOutTime: 0.32
   minimumRevealInterval: 0.08
   idleSilhouetteAlpha: 0
   edgeGlowColor: {r: 0.42, g: 1.15, b: 2.1, a: 1}
-  edgeGlowAlpha: 0.72
-  edgeGlowWidth: 0.075
+  edgeGlowAlpha: 0.34
+  edgeGlowWidth: 0.045
   edgeGlowJitter: 0.035
   edgeGlowTopOnly: 0
   edgeGlowCornerBoost: 1.65
   particleColor: {r: 0.62, g: 0.88, b: 2.2, a: 1}
-  particleAlpha: 0.82
-  particleCount: 38
-  particleLifetimeMin: 0.38
-  particleLifetimeMax: 0.85
-  particleSizeMin: 0.025
-  particleSizeMax: 0.085
-  particleSpeedMin: 0.08
-  particleSpeedMax: 0.38
+  particleAlpha: 0.76
+  particleCount: 40
+  particleLifetimeMin: 0.45
+  particleLifetimeMax: 0.9
+  particleSizeMin: 0.036
+  particleSizeMax: 0.11
+  particleSpeedMin: 0.03
+  particleSpeedMax: 0.2
   particleSpread: 0.48
-  particleNoiseStrength: 0.18
-  edgeParticleMultiplier: 1
-  cornerParticleMultiplier: 2.2
+  particleNoiseStrength: 0.1
+  edgeParticleMultiplier: 0.6
+  cornerParticleMultiplier: 1.2
   distanceFalloffCurve:
     serializedVersion: 2
     m_Curve:
@@ -165,6 +166,12 @@ MonoBehaviour:
     m_RotationOrder: 4
   minIntensity: 0.35
   maxIntensity: 1
+  enableLandingFeedback: 1
+  landingBurstDuration: 0.7
+  landingBurstIntensity: 0.42
+  minimumTopContactNormalY: 0.55
+  coopPrimedColor: {r: 0.65, g: 1, b: 0.72, a: 1}
+  coopPrimedMaxAlpha: 0.48
   particleSortingOrder: 2
   editorPreviewAlpha: 0.35
   showEdgeGizmos: 1
@@ -223,3 +230,18 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!114 &700000000000000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8270676684651722426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 51a88a6f927f4b86b4f0123f8797d9c2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  coopImpactWindow: 1
+  useImpactMidpoint: 1
+  debugCoopShockwave: 0

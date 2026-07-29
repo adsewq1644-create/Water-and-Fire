@@ -29,7 +29,7 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
     [SerializeField] private Material particleMaterial;
 
     [Header("Reveal Timing")]
-    [SerializeField, Min(0.05f)] private float revealDuration = 0.8f;
+    [SerializeField, Min(0.05f)] private float revealDuration = 2.5f;
     [SerializeField, Min(0f)] private float fadeInTime = 0.08f;
     [SerializeField, Min(0f)] private float fadeOutTime = 0.32f;
     [SerializeField, Min(0f)] private float minimumRevealInterval = 0.08f;
@@ -39,31 +39,53 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
 
     [Header("Edge Glow")]
     [SerializeField, ColorUsage(true, true)] private Color edgeGlowColor = new Color(0.42f, 1.15f, 2.1f, 1f);
-    [SerializeField, Range(0f, 1f)] private float edgeGlowAlpha = 0.72f;
-    [SerializeField, Range(0.01f, 0.25f)] private float edgeGlowWidth = 0.075f;
+    [SerializeField, Range(0f, 1f)] private float edgeGlowAlpha = 0.34f;
+    [SerializeField, Range(0.01f, 0.25f)] private float edgeGlowWidth = 0.045f;
     [SerializeField, Range(0f, 0.2f)] private float edgeGlowJitter = 0.035f;
     [SerializeField] private bool edgeGlowTopOnly = true;
     [SerializeField, Range(1f, 4f)] private float edgeGlowCornerBoost = 1.65f;
 
     [Header("Particles")]
     [SerializeField, ColorUsage(true, true)] private Color particleColor = new Color(0.62f, 0.88f, 2.2f, 1f);
-    [SerializeField, Range(0f, 1f)] private float particleAlpha = 0.82f;
-    [SerializeField, Range(1, 300)] private int particleCount = 38;
-    [SerializeField, Min(0.05f)] private float particleLifetimeMin = 0.38f;
-    [SerializeField, Min(0.05f)] private float particleLifetimeMax = 0.85f;
-    [SerializeField, Min(0.005f)] private float particleSizeMin = 0.025f;
-    [SerializeField, Min(0.005f)] private float particleSizeMax = 0.085f;
-    [SerializeField, Min(0f)] private float particleSpeedMin = 0.08f;
-    [SerializeField, Min(0f)] private float particleSpeedMax = 0.38f;
+    [SerializeField, Range(0f, 1f)] private float particleAlpha = 0.76f;
+    [SerializeField, Range(1, 300)] private int particleCount = 40;
+    [SerializeField, Min(0.05f)] private float particleLifetimeMin = 0.45f;
+    [SerializeField, Min(0.05f)] private float particleLifetimeMax = 0.9f;
+    [SerializeField, Min(0.005f)] private float particleSizeMin = 0.036f;
+    [SerializeField, Min(0.005f)] private float particleSizeMax = 0.11f;
+    [SerializeField, Min(0f)] private float particleSpeedMin = 0.03f;
+    [SerializeField, Min(0f)] private float particleSpeedMax = 0.2f;
     [SerializeField, Range(0f, 1f)] private float particleSpread = 0.48f;
-    [SerializeField, Min(0f)] private float particleNoiseStrength = 0.18f;
-    [SerializeField, Range(0.1f, 4f)] private float edgeParticleMultiplier = 1f;
-    [SerializeField, Range(0f, 6f)] private float cornerParticleMultiplier = 2.2f;
+    [SerializeField, Min(0f)] private float particleNoiseStrength = 0.1f;
+    [SerializeField, Range(0.1f, 4f)] private float edgeParticleMultiplier = 0.6f;
+    [SerializeField, Range(0f, 6f)] private float cornerParticleMultiplier = 1.2f;
+
+    [Header("Crumble Dust")]
+    [SerializeField, ColorUsage(true, true)] private Color crumbleDustColor = new Color(1f, 0.94f, 0.58f, 1f);
+    [SerializeField, Range(0f, 1f)] private float crumbleDustAlpha = 0.76f;
+    [SerializeField, Range(1, 64)] private int crumbleDustCount = 6;
+    [SerializeField, Min(0.05f)] private float crumbleDustLifetimeMin = 0.45f;
+    [SerializeField, Min(0.05f)] private float crumbleDustLifetimeMax = 0.9f;
+    [SerializeField, Min(0.005f)] private float crumbleDustSizeMin = 0.036f;
+    [SerializeField, Min(0.005f)] private float crumbleDustSizeMax = 0.11f;
+    [SerializeField, Min(0f)] private float crumbleDustFallSpeedMin = 0.08f;
+    [SerializeField, Min(0f)] private float crumbleDustFallSpeedMax = 0.36f;
+    [SerializeField, Range(0f, 0.2f)] private float crumbleDustSpawnJitter = 0.035f;
 
     [Header("Distance Response")]
     [SerializeField] private AnimationCurve distanceFalloffCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
     [SerializeField, Range(0f, 1f)] private float minIntensity = 0.22f;
     [SerializeField, Range(0f, 2f)] private float maxIntensity = 1f;
+
+    [Header("Landing")]
+    [SerializeField] private bool enableLandingFeedback = true;
+    [SerializeField, Min(0.05f)] private float landingBurstDuration = 0.7f;
+    [SerializeField, Range(0f, 2f)] private float landingBurstIntensity = 0.42f;
+    [SerializeField, Range(0f, 1f)] private float minimumTopContactNormalY = 0.55f;
+
+    [Header("Coop Primed")]
+    [SerializeField] private Color coopPrimedColor = new Color(0.65f, 1f, 0.72f, 1f);
+    [SerializeField, Range(0f, 1f)] private float coopPrimedMaxAlpha = 0.48f;
 
     [Header("Rendering")]
     [SerializeField] private int particleSortingOrder = 4;
@@ -75,22 +97,38 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
     private readonly List<EdgeSegment> edgeSegments = new List<EdgeSegment>(32);
     private readonly List<EdgeSegment> activeSegments = new List<EdgeSegment>(32);
     private readonly List<Vector2> cornerPoints = new List<Vector2>(32);
+    private readonly HashSet<PlayerCharacter> occupyingPlayers = new HashSet<PlayerCharacter>();
+    private readonly List<PlayerCharacter> invalidOccupants = new List<PlayerCharacter>(2);
+    private Color[] baseSilhouetteColors;
     private ParticleSystem edgeGlowParticles;
     private ParticleSystem sporeParticles;
+    private ParticleSystem crumbleDustParticles;
     private Material runtimeParticleMaterial;
     private float lastRevealTime = float.NegativeInfinity;
+    private float coopPrimedStartedAt;
+    private float coopPrimedUntil;
+    private bool forceOccupancyOutline;
+    private bool coopPrimedVisualApplied;
 
     private void Awake()
     {
         ResolveReferences();
+        CacheBaseSilhouetteColors();
         SetWholeSurfaceAlpha(idleSilhouetteAlpha);
         EnsureParticleSystems();
     }
 
     private void OnDisable()
     {
+        occupyingPlayers.Clear();
+        invalidOccupants.Clear();
+        coopPrimedStartedAt = 0f;
+        coopPrimedUntil = 0f;
+        forceOccupancyOutline = false;
+        coopPrimedVisualApplied = false;
         StopAndClear(edgeGlowParticles);
         StopAndClear(sporeParticles);
+        StopAndClear(crumbleDustParticles);
         SetWholeSurfaceAlpha(idleSilhouetteAlpha);
     }
 
@@ -110,15 +148,6 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         }
 
         lastRevealTime = Time.time;
-        ResolveReferences();
-        EnsureParticleSystems();
-        BuildEdgeSegments();
-        SelectRevealSegments();
-        if (activeSegments.Count == 0)
-        {
-            return;
-        }
-
         float closeness = context.Radius > 0.0001f
             ? 1f - Mathf.Clamp01(context.Distance / context.Radius)
             : 1f;
@@ -127,11 +156,156 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
             : closeness;
         float intensity = Mathf.Lerp(minIntensity, maxIntensity, response);
 
-        SetWholeSurfaceAlpha(idleSilhouetteAlpha);
-        ConfigureParticleSystems();
-        EmitSparseEdgeGlow(intensity);
-        EmitSurfaceSpores(intensity);
-        EmitCornerSpores(intensity);
+        RevealFromShockwave(revealDuration, intensity);
+    }
+
+    public void RevealFromShockwave(float duration)
+    {
+        RevealFromShockwave(duration, maxIntensity);
+    }
+
+    public void ShowLandingBurst()
+    {
+        if (!enableLandingFeedback ||
+            !isActiveAndEnabled ||
+            Time.time < lastRevealTime + minimumRevealInterval)
+        {
+            return;
+        }
+
+        lastRevealTime = Time.time;
+        PrepareEdgeEffects();
+        EmitRevealPulse(
+            landingBurstIntensity,
+            landingBurstDuration,
+            0.65f,
+            includeCornerSpores: true);
+    }
+
+    public void EmitCrumbleDust(float intensity, Vector2 visualOffset)
+    {
+        if (!isActiveAndEnabled)
+        {
+            return;
+        }
+
+        PrepareEdgeEffects();
+        if (activeSegments.Count == 0 || crumbleDustParticles == null)
+        {
+            return;
+        }
+
+        float clampedIntensity = Mathf.Max(0f, intensity);
+        int count = Mathf.Clamp(
+            Mathf.RoundToInt(crumbleDustCount * clampedIntensity),
+            1,
+            64);
+        float totalLength = TotalCrumbleSurfaceLength();
+        if (totalLength <= 0.0001f)
+        {
+            return;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            EdgeSegment segment = ChooseCrumbleSurfaceByLength(Random.value * totalLength);
+            Vector2 tangent = (segment.End - segment.Start).normalized;
+            Vector2 position = Vector2.Lerp(segment.Start, segment.End, Random.value);
+            position += visualOffset;
+            position += tangent * Random.Range(-crumbleDustSpawnJitter, crumbleDustSpawnJitter);
+
+            float fallSpeed = Random.Range(
+                crumbleDustFallSpeedMin,
+                crumbleDustFallSpeedMax);
+            Vector2 velocity = Vector2.down * fallSpeed;
+
+            EmitParticle(
+                crumbleDustParticles,
+                position,
+                velocity,
+                Random.Range(crumbleDustSizeMin, crumbleDustSizeMax),
+                Random.Range(crumbleDustLifetimeMin, crumbleDustLifetimeMax),
+                crumbleDustColor,
+                crumbleDustAlpha * Mathf.Clamp01(clampedIntensity));
+        }
+    }
+
+    public void SetOccupiedByPlayer(PlayerCharacter player, bool occupied)
+    {
+        if (!enableLandingFeedback || player == null)
+        {
+            return;
+        }
+
+        if (occupied)
+        {
+            if (occupyingPlayers.Add(player))
+            {
+                ShowLandingBurst();
+            }
+            return;
+        }
+
+        occupyingPlayers.Remove(player);
+    }
+
+    public void SetOccupancyOutlineVisible(bool visible)
+    {
+        if (!enableLandingFeedback)
+        {
+            forceOccupancyOutline = false;
+            return;
+        }
+
+        if (visible && !forceOccupancyOutline)
+        {
+            ShowLandingBurst();
+        }
+        forceOccupancyOutline = visible;
+    }
+
+    public void ShowCoopPrimed(float duration)
+    {
+        if (!isActiveAndEnabled)
+        {
+            return;
+        }
+
+        float clampedDuration = Mathf.Max(0.05f, duration);
+        coopPrimedStartedAt = Time.time;
+        coopPrimedUntil = Time.time + clampedDuration;
+        coopPrimedVisualApplied = true;
+        ApplyCoopPrimedSurface(1f);
+    }
+
+    public void ClearCoopPrimed()
+    {
+        coopPrimedStartedAt = 0f;
+        coopPrimedUntil = 0f;
+        if (coopPrimedVisualApplied)
+        {
+            coopPrimedVisualApplied = false;
+            SetWholeSurfaceAlpha(idleSilhouetteAlpha);
+        }
+    }
+
+    private void Update()
+    {
+        PruneInvalidOccupants();
+
+        float now = Time.time;
+        if (now < coopPrimedUntil)
+        {
+            float duration = Mathf.Max(0.05f, coopPrimedUntil - coopPrimedStartedAt);
+            float normalized = Mathf.Clamp01((now - coopPrimedStartedAt) / duration);
+            ApplyCoopPrimedSurface(1f - normalized);
+            return;
+        }
+
+        if (coopPrimedVisualApplied)
+        {
+            ClearCoopPrimed();
+        }
     }
 
     [ContextMenu("Refresh Reveal References")]
@@ -142,6 +316,141 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
             : GetComponentsInChildren<SpriteRenderer>(true);
         platformColliders = GetComponentsInChildren<Collider2D>(true);
         ResolveReferences();
+        CacheBaseSilhouetteColors(forceRefresh: true);
+    }
+
+    private void RevealFromShockwave(float duration, float intensity)
+    {
+        PrepareEdgeEffects();
+        if (activeSegments.Count == 0)
+        {
+            return;
+        }
+
+        float clampedDuration = Mathf.Max(0.05f, duration);
+        EmitRevealPulse(
+            Mathf.Max(0f, intensity),
+            Mathf.Min(particleLifetimeMax, clampedDuration),
+            1f,
+            includeCornerSpores: true);
+    }
+
+    private void PrepareEdgeEffects()
+    {
+        ResolveReferences();
+        EnsureParticleSystems();
+        BuildEdgeSegments();
+        SelectRevealSegments();
+        ApplyCurrentSurfaceVisual();
+        ConfigureParticleSystems();
+    }
+
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (TryGetTopContactPlayer(collision, out PlayerCharacter player))
+        {
+            SetOccupiedByPlayer(player, true);
+        }
+    }
+
+    private void OnCollisionStay2D(Collision2D collision)
+    {
+        if (TryGetTopContactPlayer(collision, out PlayerCharacter player))
+        {
+            SetOccupiedByPlayer(player, true);
+        }
+    }
+
+    private void OnCollisionExit2D(Collision2D collision)
+    {
+        PlayerCharacter player = GetPlayer(collision);
+        if (player != null)
+        {
+            SetOccupiedByPlayer(player, false);
+        }
+    }
+
+    private bool TryGetTopContactPlayer(Collision2D collision, out PlayerCharacter player)
+    {
+        player = null;
+        if (!enableLandingFeedback || collision == null || collision.contactCount == 0)
+        {
+            return false;
+        }
+
+        player = GetPlayer(collision);
+        if (player == null || player.BodyCollider == null || !player.IsAliveLike)
+        {
+            player = null;
+            return false;
+        }
+
+        Vector2 surfaceUp = transform.up;
+        Vector2 playerCenter = player.BodyCollider.bounds.center;
+        for (int i = 0; i < collision.contactCount; i++)
+        {
+            ContactPoint2D contact = collision.GetContact(i);
+            Vector2 toPlayer = playerCenter - contact.point;
+            if (toPlayer.sqrMagnitude < 0.0001f)
+            {
+                continue;
+            }
+
+            float playerAboveSurface = Vector2.Dot(toPlayer.normalized, surfaceUp);
+            float normalAlignment = Mathf.Abs(Vector2.Dot(contact.normal.normalized, surfaceUp));
+            if (playerAboveSurface >= minimumTopContactNormalY &&
+                normalAlignment >= minimumTopContactNormalY)
+            {
+                return true;
+            }
+        }
+
+        player = null;
+        return false;
+    }
+
+    private static PlayerCharacter GetPlayer(Collision2D collision)
+    {
+        if (collision == null)
+        {
+            return null;
+        }
+
+        if (collision.rigidbody != null)
+        {
+            PlayerCharacter rigidbodyPlayer = collision.rigidbody.GetComponentInParent<PlayerCharacter>();
+            if (rigidbodyPlayer != null)
+            {
+                return rigidbodyPlayer;
+            }
+        }
+
+        return collision.collider != null
+            ? collision.collider.GetComponentInParent<PlayerCharacter>()
+            : null;
+    }
+
+    private void PruneInvalidOccupants()
+    {
+        if (occupyingPlayers.Count == 0)
+        {
+            return;
+        }
+
+        invalidOccupants.Clear();
+        foreach (PlayerCharacter player in occupyingPlayers)
+        {
+            if (player == null || !player.isActiveAndEnabled || !player.IsAliveLike)
+            {
+                invalidOccupants.Add(player);
+            }
+        }
+
+        for (int i = 0; i < invalidOccupants.Count; i++)
+        {
+            occupyingPlayers.Remove(invalidOccupants[i]);
+        }
+        invalidOccupants.Clear();
     }
 
     private void ResolveReferences()
@@ -162,6 +471,29 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         }
     }
 
+    private void CacheBaseSilhouetteColors(bool forceRefresh = false)
+    {
+        if (silhouetteRenderers == null)
+        {
+            baseSilhouetteColors = null;
+            return;
+        }
+
+        if (!forceRefresh &&
+            baseSilhouetteColors != null &&
+            baseSilhouetteColors.Length == silhouetteRenderers.Length)
+        {
+            return;
+        }
+
+        baseSilhouetteColors = new Color[silhouetteRenderers.Length];
+        for (int i = 0; i < silhouetteRenderers.Length; i++)
+        {
+            SpriteRenderer renderer = silhouetteRenderers[i];
+            baseSilhouetteColors[i] = renderer != null ? renderer.color : Color.white;
+        }
+    }
+
     private void SetWholeSurfaceAlpha(float alpha)
     {
         if (silhouetteRenderers == null)
@@ -169,6 +501,7 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
             return;
         }
 
+        CacheBaseSilhouetteColors();
         float clampedAlpha = Mathf.Clamp01(alpha);
         for (int i = 0; i < silhouetteRenderers.Length; i++)
         {
@@ -178,15 +511,48 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
                 continue;
             }
 
-            Color color = renderer.color;
+            Color color = baseSilhouetteColors[i];
             color.a = clampedAlpha;
             renderer.color = color;
         }
     }
 
+    private void ApplyCurrentSurfaceVisual()
+    {
+        if (Application.isPlaying && Time.time < coopPrimedUntil)
+        {
+            float duration = Mathf.Max(0.05f, coopPrimedUntil - coopPrimedStartedAt);
+            float normalized = Mathf.Clamp01((Time.time - coopPrimedStartedAt) / duration);
+            ApplyCoopPrimedSurface(1f - normalized);
+            return;
+        }
+
+        SetWholeSurfaceAlpha(idleSilhouetteAlpha);
+    }
+
+    private void ApplyCoopPrimedSurface(float normalizedAlpha)
+    {
+        if (silhouetteRenderers == null)
+        {
+            return;
+        }
+
+        CacheBaseSilhouetteColors();
+        Color tint = coopPrimedColor;
+        tint.a = Mathf.Clamp01(coopPrimedMaxAlpha * Mathf.Clamp01(normalizedAlpha));
+        for (int i = 0; i < silhouetteRenderers.Length; i++)
+        {
+            SpriteRenderer renderer = silhouetteRenderers[i];
+            if (renderer != null)
+            {
+                renderer.color = tint;
+            }
+        }
+    }
+
     private void EnsureParticleSystems()
     {
-        if (edgeGlowParticles != null && sporeParticles != null)
+        if (edgeGlowParticles != null && sporeParticles != null && crumbleDustParticles != null)
         {
             return;
         }
@@ -202,8 +568,10 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
 
         edgeGlowParticles = FindOrCreateParticleSystem(effectRoot, "SparseEdgeGlow");
         sporeParticles = FindOrCreateParticleSystem(effectRoot, "SurfaceSpores");
+        crumbleDustParticles = FindOrCreateParticleSystem(effectRoot, "CrumbleDust");
         ApplyParticleMaterial(edgeGlowParticles);
         ApplyParticleMaterial(sporeParticles);
+        ApplyParticleMaterial(crumbleDustParticles);
     }
 
     private ParticleSystem FindOrCreateParticleSystem(Transform parent, string objectName)
@@ -283,6 +651,7 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
     {
         ConfigureParticleSystem(edgeGlowParticles, particleNoiseStrength * 0.25f);
         ConfigureParticleSystem(sporeParticles, particleNoiseStrength);
+        ConfigureParticleSystem(crumbleDustParticles, 0f);
     }
 
     private void ConfigureParticleSystem(ParticleSystem particles, float noiseStrength)
@@ -519,14 +888,52 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         cornerPoints.Add(point);
     }
 
-    private void EmitSparseEdgeGlow(float intensity)
+    // Rebuild world-space edges for moving platforms before each emission pulse.
+    private void EmitRevealPulse(
+        float intensity,
+        float lifetimeCap,
+        float countMultiplier,
+        bool includeCornerSpores)
+    {
+        if (edgeGlowParticles == null || sporeParticles == null)
+        {
+            PrepareEdgeEffects();
+        }
+        else
+        {
+            BuildEdgeSegments();
+            SelectRevealSegments();
+        }
+
+        if (activeSegments.Count == 0)
+        {
+            return;
+        }
+
+        float clampedIntensity = Mathf.Max(0f, intensity);
+        float clampedLifetime = Mathf.Max(0.05f, lifetimeCap);
+        float clampedCountMultiplier = Mathf.Max(0.01f, countMultiplier);
+        EmitSparseEdgeGlow(clampedIntensity, clampedLifetime, clampedCountMultiplier);
+        EmitSurfaceSpores(clampedIntensity, clampedLifetime, clampedCountMultiplier);
+        if (includeCornerSpores)
+        {
+            EmitCornerSpores(clampedIntensity, clampedLifetime, clampedCountMultiplier);
+        }
+    }
+
+    private void EmitSparseEdgeGlow(float intensity, float lifetimeCap, float countMultiplier)
     {
         float spacing = Mathf.Max(0.14f, edgeGlowWidth * 3.8f);
         for (int segmentIndex = 0; segmentIndex < activeSegments.Count; segmentIndex++)
         {
             EdgeSegment segment = activeSegments[segmentIndex];
             int samples = Mathf.Clamp(
-                Mathf.RoundToInt(segment.Length / spacing * edgeParticleMultiplier * intensity),
+                Mathf.RoundToInt(
+                    segment.Length /
+                    spacing *
+                    edgeParticleMultiplier *
+                    intensity *
+                    countMultiplier),
                 1,
                 180);
             Vector2 tangent = (segment.End - segment.Start).normalized;
@@ -547,16 +954,19 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
                     position,
                     segment.Normal * Random.Range(0f, particleSpeedMin * 0.35f),
                     Random.Range(edgeGlowWidth * 0.65f, edgeGlowWidth * 1.2f),
-                    Mathf.Min(revealDuration, Random.Range(particleLifetimeMin, particleLifetimeMax)),
+                    Mathf.Min(lifetimeCap, Random.Range(particleLifetimeMin, particleLifetimeMax)),
                     edgeGlowColor,
                     edgeGlowAlpha * intensity);
             }
         }
     }
 
-    private void EmitSurfaceSpores(float intensity)
+    private void EmitSurfaceSpores(float intensity, float lifetimeCap, float countMultiplier)
     {
-        int count = Mathf.Clamp(Mathf.RoundToInt(particleCount * edgeParticleMultiplier * intensity), 1, 600);
+        int count = Mathf.Clamp(
+            Mathf.RoundToInt(particleCount * edgeParticleMultiplier * intensity * countMultiplier),
+            1,
+            600);
         float totalLength = TotalActiveLength();
         if (totalLength <= 0.0001f)
         {
@@ -570,24 +980,32 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
             Vector2 position = Vector2.Lerp(segment.Start, segment.End, Random.value);
             position += tangent * Random.Range(-edgeGlowJitter, edgeGlowJitter);
             position += segment.Normal * Random.Range(0f, edgeGlowJitter * 1.8f);
-            EmitSpore(position, segment.Normal, intensity, 1f);
+            EmitSpore(position, segment.Normal, intensity, 1f, lifetimeCap);
         }
     }
 
-    private void EmitCornerSpores(float intensity)
+    private void EmitCornerSpores(float intensity, float lifetimeCap, float countMultiplier)
     {
-        int perCorner = Mathf.Clamp(Mathf.RoundToInt(cornerParticleMultiplier * intensity), 1, 18);
+        int perCorner = Mathf.Clamp(
+            Mathf.RoundToInt(cornerParticleMultiplier * intensity * countMultiplier),
+            1,
+            18);
         for (int cornerIndex = 0; cornerIndex < cornerPoints.Count; cornerIndex++)
         {
             for (int i = 0; i < perCorner; i++)
             {
                 Vector2 position = cornerPoints[cornerIndex] + Random.insideUnitCircle * edgeGlowJitter;
-                EmitSpore(position, Vector2.up, intensity, edgeGlowCornerBoost);
+                EmitSpore(position, Vector2.up, intensity, edgeGlowCornerBoost, lifetimeCap);
             }
         }
     }
 
-    private void EmitSpore(Vector2 position, Vector2 surfaceNormal, float intensity, float sizeBoost)
+    private void EmitSpore(
+        Vector2 position,
+        Vector2 surfaceNormal,
+        float intensity,
+        float sizeBoost,
+        float lifetimeCap)
     {
         Vector2 randomDirection = Random.insideUnitCircle;
         if (randomDirection.sqrMagnitude < 0.0001f)
@@ -603,7 +1021,7 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
             position,
             direction * speed,
             Random.Range(particleSizeMin, particleSizeMax) * sizeBoost,
-            Mathf.Min(revealDuration, Random.Range(particleLifetimeMin, particleLifetimeMax)),
+            Mathf.Min(lifetimeCap, Random.Range(particleLifetimeMin, particleLifetimeMax)),
             particleColor,
             particleAlpha * intensity);
     }
@@ -658,6 +1076,57 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         return activeSegments[activeSegments.Count - 1];
     }
 
+    private float TotalCrumbleSurfaceLength()
+    {
+        float topLength = 0f;
+        for (int i = 0; i < activeSegments.Count; i++)
+        {
+            if (activeSegments[i].IsTop)
+            {
+                topLength += activeSegments[i].Length;
+            }
+        }
+
+        return topLength > 0.0001f ? topLength : TotalActiveLength();
+    }
+
+    private EdgeSegment ChooseCrumbleSurfaceByLength(float distance)
+    {
+        bool hasTopSurface = false;
+        for (int i = 0; i < activeSegments.Count; i++)
+        {
+            if (activeSegments[i].IsTop)
+            {
+                hasTopSurface = true;
+                break;
+            }
+        }
+
+        if (!hasTopSurface)
+        {
+            return ChooseSegmentByLength(distance);
+        }
+
+        EdgeSegment fallback = activeSegments[0];
+        for (int i = 0; i < activeSegments.Count; i++)
+        {
+            EdgeSegment segment = activeSegments[i];
+            if (!segment.IsTop)
+            {
+                continue;
+            }
+
+            fallback = segment;
+            if (distance <= segment.Length)
+            {
+                return segment;
+            }
+            distance -= segment.Length;
+        }
+
+        return fallback;
+    }
+
     private static Vector2 UpwardNormal(Vector2 start, Vector2 end)
     {
         Vector2 direction = (end - start).normalized;
@@ -692,9 +1161,22 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         particleSizeMax = Mathf.Max(particleSizeMin, particleSizeMax);
         particleSpeedMin = Mathf.Max(0f, particleSpeedMin);
         particleSpeedMax = Mathf.Max(particleSpeedMin, particleSpeedMax);
+        crumbleDustCount = Mathf.Max(1, crumbleDustCount);
+        crumbleDustLifetimeMin = Mathf.Max(0.05f, crumbleDustLifetimeMin);
+        crumbleDustLifetimeMax = Mathf.Max(crumbleDustLifetimeMin, crumbleDustLifetimeMax);
+        crumbleDustSizeMin = Mathf.Max(0.005f, crumbleDustSizeMin);
+        crumbleDustSizeMax = Mathf.Max(crumbleDustSizeMin, crumbleDustSizeMax);
+        crumbleDustFallSpeedMin = Mathf.Max(0f, crumbleDustFallSpeedMin);
+        crumbleDustFallSpeedMax = Mathf.Max(crumbleDustFallSpeedMin, crumbleDustFallSpeedMax);
+        crumbleDustSpawnJitter = Mathf.Max(0f, crumbleDustSpawnJitter);
         minIntensity = Mathf.Clamp01(minIntensity);
         maxIntensity = Mathf.Max(minIntensity, maxIntensity);
+        landingBurstDuration = Mathf.Max(0.05f, landingBurstDuration);
+        landingBurstIntensity = Mathf.Max(0f, landingBurstIntensity);
+        minimumTopContactNormalY = Mathf.Clamp01(minimumTopContactNormalY);
+        coopPrimedMaxAlpha = Mathf.Clamp01(coopPrimedMaxAlpha);
         ResolveReferences();
+        CacheBaseSilhouetteColors(forceRefresh: true);
 #if UNITY_EDITOR
         if (!Application.isPlaying)
         {

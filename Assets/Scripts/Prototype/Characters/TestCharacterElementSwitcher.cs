@@ -13,6 +13,7 @@ public class TestCharacterElementSwitcher : MonoBehaviour
 
     [Header("Solo Test")]
     [SerializeField] private bool disableOtherPlayersOnPlay = true;
+    [SerializeField] private bool allowSoloCoopShockwaveTest = true;
 
     [Header("Element Side Effects")]
     [SerializeField] private bool syncDarknessLights = true;
@@ -22,6 +23,15 @@ public class TestCharacterElementSwitcher : MonoBehaviour
 
     private WaterCharacterLight waterLight;
     private FireLightSource fireLight;
+
+    public bool AllowsSoloCoopShockwaveTest(PlayerCharacter player)
+    {
+        ResolveTarget();
+        return isActiveAndEnabled &&
+               allowSoloCoopShockwaveTest &&
+               target != null &&
+               target == player;
+    }
 
     private void Reset()
     {

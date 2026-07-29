@@ -115,30 +115,30 @@ MonoBehaviour:
   platformColliders:
   - {fileID: 2003465228181838326}
   particleMaterial: {fileID: 2100000, guid: 4da844ed502a5fe4e84c1df0afcec736, type: 2}
-  revealDuration: 0.8
+  revealDuration: 2.5
   fadeInTime: 0.08
   fadeOutTime: 0.32
   minimumRevealInterval: 0.08
   idleSilhouetteAlpha: 0
   edgeGlowColor: {r: 0.7799925, g: 2.0999796, b: 2.0999796, a: 1}
-  edgeGlowAlpha: 0.72
-  edgeGlowWidth: 0.075
+  edgeGlowAlpha: 0.34
+  edgeGlowWidth: 0.045
   edgeGlowJitter: 0.035
   edgeGlowTopOnly: 0
   edgeGlowCornerBoost: 1.65
   particleColor: {r: 0.62, g: 0.88, b: 2.2, a: 1}
-  particleAlpha: 0.82
-  particleCount: 38
-  particleLifetimeMin: 0.38
-  particleLifetimeMax: 0.38
-  particleSizeMin: 0.025
-  particleSizeMax: 0.085
-  particleSpeedMin: 0.08
-  particleSpeedMax: 0.38
+  particleAlpha: 0.76
+  particleCount: 40
+  particleLifetimeMin: 0.45
+  particleLifetimeMax: 0.9
+  particleSizeMin: 0.036
+  particleSizeMax: 0.11
+  particleSpeedMin: 0.03
+  particleSpeedMax: 0.2
   particleSpread: 0.48
-  particleNoiseStrength: 0.18
-  edgeParticleMultiplier: 1
-  cornerParticleMultiplier: 2.2
+  particleNoiseStrength: 0.1
+  edgeParticleMultiplier: 0.6
+  cornerParticleMultiplier: 1.2
   distanceFalloffCurve:
     serializedVersion: 2
     m_Curve:
@@ -165,6 +165,10 @@ MonoBehaviour:
     m_RotationOrder: 4
   minIntensity: 0.35
   maxIntensity: 1
+  enableLandingFeedback: 0
+  landingBurstDuration: 0.7
+  landingBurstIntensity: 0.42
+  minimumTopContactNormalY: 0.55
   particleSortingOrder: 2
   editorPreviewAlpha: 0.35
   showEdgeGizmos: 1
