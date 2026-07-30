@@ -69,6 +69,7 @@ public class PlayerCharacter : MonoBehaviour
     [SerializeField] private float shockwaveDuration = 0.25f;
     [SerializeField] private bool shockwaveDelayByDistance = true;
     [SerializeField] private LayerMask shockwaveMask = ~0;
+    [SerializeField] private ShockwaveEmitter2D shockwaveEmitter;
 
     [Header("Coop Shockwave")]
     [SerializeField, Min(1f)] private float coopShockwaveRadiusMultiplier = 1.65f;
@@ -218,11 +219,11 @@ public class PlayerCharacter : MonoBehaviour
 
         float radius = shockwaveRadius * Mathf.Max(1f, coopShockwaveRadiusMultiplier);
         float duration = shockwaveDuration * Mathf.Max(1f, coopShockwaveDurationMultiplier);
-        DispatchShockwave(origin, radius, duration);
-        CreateShockwaveVisual(
+        EmitShockwave(
             origin,
             radius,
             duration,
+            ShockwaveSourceType.CoopPlayer,
             Mathf.Max(1f, coopShockwaveWidthMultiplier));
     }
 
@@ -461,6 +462,7 @@ public class PlayerCharacter : MonoBehaviour
         jumpKey = KeyCode.Space;
         ApplyFrictionlessColliderMaterial();
         spriteRenderer = GetComponent<SpriteRenderer>();
+        ResolveShockwaveEmitter();
         SetupAimVisuals();
         originalGravityScale = body.gravityScale;
         originalTrigger = bodyCollider.isTrigger;
@@ -1208,8 +1210,12 @@ public class PlayerCharacter : MonoBehaviour
 
         if (!suppressBaseDiveShockwaveThisImpact)
         {
-            DispatchShockwave(impactPoint, shockwaveRadius, shockwaveDuration);
-            CreateShockwaveVisual(impactPoint, shockwaveRadius, shockwaveDuration, 1f);
+            EmitShockwave(
+                impactPoint,
+                shockwaveRadius,
+                shockwaveDuration,
+                ShockwaveSourceType.Player,
+                1f);
         }
         suppressBaseDiveShockwaveThisImpact = false;
 
@@ -1251,163 +1257,47 @@ public class PlayerCharacter : MonoBehaviour
         }
     }
 
-    private void DispatchShockwave(Vector2 origin, float radius, float duration)
-    {
-        if (radius <= 0f)
-        {
-            return;
-        }
-
-        Collider2D[] hits = Physics2D.OverlapCircleAll(origin, radius, shockwaveMask);
-        var invokedReceivers = new HashSet<MonoBehaviour>();
-        for (int i = 0; i < hits.Length; i++)
-        {
-            Collider2D hit = hits[i];
-            if (hit == null || hit == bodyCollider || IsPlayerCollider(hit))
-            {
-                continue;
-            }
-
-            Vector2 closestPoint = hit.ClosestPoint(origin);
-            float distance = Vector2.Distance(origin, closestPoint);
-            MonoBehaviour[] behaviours = hit.GetComponentsInParent<MonoBehaviour>();
-            for (int behaviourIndex = 0; behaviourIndex < behaviours.Length; behaviourIndex++)
-            {
-                MonoBehaviour behaviour = behaviours[behaviourIndex];
-                if (behaviour == null || !invokedReceivers.Add(behaviour))
-                {
-                    continue;
-                }
-
-                if (behaviour is IShockwaveContextReceiver contextReceiver)
-                {
-                    var context = new ShockwaveContext(origin, this, radius, distance);
-                    if (shockwaveDelayByDistance && radius > 0f)
-                    {
-                        float delay = Mathf.Clamp01(distance / radius) * Mathf.Max(0f, duration);
-                        StartCoroutine(DispatchShockwaveAfterDelay(contextReceiver, context, delay));
-                    }
-                    else
-                    {
-                        contextReceiver.OnShockwaveReceived(context);
-                    }
-                }
-                else if (behaviour is IShockwaveReceiver receiver)
-                {
-                    if (shockwaveDelayByDistance && radius > 0f)
-                    {
-                        float delay = Mathf.Clamp01(distance / radius) * Mathf.Max(0f, duration);
-                        StartCoroutine(DispatchShockwaveAfterDelay(receiver, origin, distance, delay));
-                    }
-                    else
-                    {
-                        receiver.OnShockwave(origin, distance, gameObject);
-                    }
-                }
-            }
-        }
-    }
-
-    private IEnumerator DispatchShockwaveAfterDelay(IShockwaveReceiver receiver, Vector2 origin, float distance, float delay)
-    {
-        if (delay > 0f)
-        {
-            yield return new WaitForSeconds(delay);
-        }
-
-        MonoBehaviour receiverBehaviour = receiver as MonoBehaviour;
-        if (receiverBehaviour != null)
-        {
-            receiver.OnShockwave(origin, distance, gameObject);
-        }
-    }
-
-    private IEnumerator DispatchShockwaveAfterDelay(IShockwaveContextReceiver receiver, ShockwaveContext context, float delay)
-    {
-        if (delay > 0f)
-        {
-            yield return new WaitForSeconds(delay);
-        }
-
-        MonoBehaviour receiverBehaviour = receiver as MonoBehaviour;
-        if (receiverBehaviour != null)
-        {
-            receiver.OnShockwaveReceived(context);
-        }
-    }
-
-    private void CreateShockwaveVisual(
+    private void EmitShockwave(
         Vector2 origin,
         float radius,
         float duration,
-        float widthMultiplier)
+        ShockwaveSourceType sourceType,
+        float visualWidthMultiplier)
     {
-        if (duration <= 0f || radius <= 0f)
+        ResolveShockwaveEmitter();
+        if (shockwaveEmitter == null || radius <= 0f)
         {
             return;
         }
 
-        var ringObject = new GameObject("DiveShockwaveVisual");
-        ringObject.transform.position = origin;
-        ringObject.layer = aimVisualLayer >= 0 ? aimVisualLayer : gameObject.layer;
-
-        LineRenderer ring = ringObject.AddComponent<LineRenderer>();
-        ring.useWorldSpace = true;
-        ring.loop = true;
-        ring.positionCount = 48;
-        float ringWidth = 0.045f * Mathf.Max(1f, widthMultiplier);
-        ring.startWidth = ringWidth;
-        ring.endWidth = ringWidth;
-        ring.sortingOrder = GetAimLineSortingOrder(24);
-        if (spriteRenderer != null)
+        shockwaveEmitter.Emit(new ShockwaveRequest
         {
-            ring.sortingLayerID = spriteRenderer.sortingLayerID;
-        }
-        if (aimLineMaterial != null)
-        {
-            ring.sharedMaterial = aimLineMaterial;
-        }
-
-        StartCoroutine(AnimateShockwaveVisual(ringObject, ring, origin, radius, duration));
+            Origin = origin,
+            SourceObject = gameObject,
+            Instigator = this,
+            SourceType = sourceType,
+            Shape = ShockwaveShape.FullCircle,
+            Radius = radius,
+            Duration = duration,
+            TargetMask = shockwaveMask,
+            DelayByDistance = shockwaveDelayByDistance,
+            ShowVisual = true,
+            VisualWidthMultiplier = visualWidthMultiplier,
+            ArcDirection = Vector2.up,
+            ArcAngle = 360f
+        });
     }
 
-    private IEnumerator AnimateShockwaveVisual(
-        GameObject ringObject,
-        LineRenderer ring,
-        Vector2 origin,
-        float targetRadius,
-        float duration)
+    private void ResolveShockwaveEmitter()
     {
-        float elapsed = 0f;
-        while (elapsed < duration && ring != null)
+        if (shockwaveEmitter == null)
         {
-            elapsed += Time.deltaTime;
-            float t = duration <= 0f ? 1f : Mathf.Clamp01(elapsed / duration);
-            float radius = Mathf.Lerp(0.05f, targetRadius, t);
-            Color color = new Color(1f, 0.92f, 0.35f, Mathf.Lerp(0.55f, 0f, t));
-            ring.startColor = color;
-            ring.endColor = color;
-            SetShockwaveRingPositions(ring, origin, radius);
-            yield return null;
+            shockwaveEmitter = GetComponent<ShockwaveEmitter2D>();
         }
 
-        if (ringObject != null)
+        if (shockwaveEmitter == null && Application.isPlaying)
         {
-            Destroy(ringObject);
-        }
-    }
-
-    private void SetShockwaveRingPositions(LineRenderer ring, Vector2 origin, float radius)
-    {
-        int count = ring.positionCount;
-        for (int i = 0; i < count; i++)
-        {
-            float angle = i / (float)count * Mathf.PI * 2f;
-            Vector3 point = new Vector3(
-                origin.x + Mathf.Cos(angle) * radius,
-                origin.y + Mathf.Sin(angle) * radius,
-                transform.position.z);
-            ring.SetPosition(i, point);
+            shockwaveEmitter = gameObject.AddComponent<ShockwaveEmitter2D>();
         }
     }
 
@@ -1968,6 +1858,7 @@ public class PlayerCharacter : MonoBehaviour
     private void OnValidate()
     {
         jumpKey = KeyCode.Space;
+        ResolveShockwaveEmitter();
 
         moveSpeed = Mathf.Max(0f, moveSpeed);
         airControlMultiplier = Mathf.Clamp01(airControlMultiplier);

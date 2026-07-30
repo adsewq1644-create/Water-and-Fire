@@ -6,6 +6,8 @@ using UnityEngine.Rendering.Universal;
 [DisallowMultipleComponent]
 public class DarkZone : MonoBehaviour
 {
+    private static readonly HashSet<DarkZone> registeredZones = new HashSet<DarkZone>();
+
     [SerializeField] private Light2D globalLight2D;
     [SerializeField] private float normalLightIntensity = 1f;
     [SerializeField] private float darkLightIntensity = 0.24f;
@@ -15,6 +17,7 @@ public class DarkZone : MonoBehaviour
     [SerializeField] private bool debugGizmos = true;
 
     private readonly HashSet<PlayerCharacter> playersInside = new HashSet<PlayerCharacter>();
+    private Collider2D zoneCollider;
 
     public Light2D GlobalLight2D => globalLight2D;
     public float NormalLightIntensity => normalLightIntensity;
@@ -25,17 +28,46 @@ public class DarkZone : MonoBehaviour
 
     private void Awake()
     {
-        Collider2D trigger = GetComponent<Collider2D>();
-        trigger.isTrigger = true;
+        ResolveZoneCollider();
+    }
+
+    private void OnEnable()
+    {
+        ResolveZoneCollider();
+        registeredZones.Add(this);
     }
 
     private void OnDisable()
     {
+        registeredZones.Remove(this);
         playersInside.Clear();
         if (DarkZoneManager.TryGetExisting(out DarkZoneManager manager))
         {
             manager.SetZoneActive(this, false);
         }
+    }
+
+    public static bool ContainsWorldPoint(Vector2 worldPoint)
+    {
+        registeredZones.RemoveWhere(zone => zone == null);
+        foreach (DarkZone zone in registeredZones)
+        {
+            if (zone != null && zone.isActiveAndEnabled && zone.ContainsPoint(worldPoint))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool ContainsPoint(Vector2 worldPoint)
+    {
+        ResolveZoneCollider();
+        return zoneCollider != null &&
+               zoneCollider.enabled &&
+               zoneCollider.gameObject.activeInHierarchy &&
+               zoneCollider.OverlapPoint(worldPoint);
     }
 
     private void OnTriggerEnter2D(Collider2D other)
@@ -77,6 +109,19 @@ public class DarkZone : MonoBehaviour
         }
 
         return !onlyAffectLocalPlayer || DarknessLocalPlayerUtility.IsLocalPlayer(player);
+    }
+
+    private void ResolveZoneCollider()
+    {
+        if (zoneCollider == null)
+        {
+            zoneCollider = GetComponent<Collider2D>();
+        }
+
+        if (zoneCollider != null)
+        {
+            zoneCollider.isTrigger = true;
+        }
     }
 
     private void OnValidate()
