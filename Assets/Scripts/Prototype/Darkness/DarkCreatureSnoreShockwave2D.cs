@@ -27,6 +27,11 @@ public sealed class DarkCreatureSnoreShockwave2D : MonoBehaviour
     [SerializeField] private bool delayByDistance = true;
     [SerializeField, Min(0.1f)] private float visualWidthMultiplier = 1.35f;
 
+    [Header("Arc Undulation")]
+    [SerializeField, Range(0f, 1f)] private float arcUndulationStrength = 0.5f;
+    [SerializeField, Range(0f, 12f)] private float arcUndulationFrequency = 4.5f;
+    [SerializeField, Range(0f, 4f)] private float arcUndulationSpeed = 1.35f;
+
     [Header("Warning")]
     [SerializeField] private bool showWarningWave = true;
     [SerializeField, Min(0.05f)] private float warningRadius = 0.55f;
@@ -166,7 +171,10 @@ public sealed class DarkCreatureSnoreShockwave2D : MonoBehaviour
             ShowVisual = true,
             VisualWidthMultiplier = visualWidthMultiplier,
             ArcDirection = Vector2.up,
-            ArcAngle = 180f
+            ArcAngle = 180f,
+            ArcUndulationStrength = arcUndulationStrength,
+            ArcUndulationFrequency = arcUndulationFrequency,
+            ArcUndulationSpeed = arcUndulationSpeed
         };
     }
 
@@ -197,6 +205,9 @@ public sealed class DarkCreatureSnoreShockwave2D : MonoBehaviour
         radius = Mathf.Max(0.1f, radius);
         duration = Mathf.Max(0.05f, duration);
         visualWidthMultiplier = Mathf.Max(0.1f, visualWidthMultiplier);
+        arcUndulationStrength = Mathf.Clamp01(arcUndulationStrength);
+        arcUndulationFrequency = Mathf.Clamp(arcUndulationFrequency, 0f, 12f);
+        arcUndulationSpeed = Mathf.Clamp(arcUndulationSpeed, 0f, 4f);
     }
 
     private void OnDrawGizmosSelected()

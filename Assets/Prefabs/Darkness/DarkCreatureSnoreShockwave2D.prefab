@@ -80,6 +80,9 @@ MonoBehaviour:
     m_Bits: 4294967295
   delayByDistance: 1
   visualWidthMultiplier: 1.35
+  arcUndulationStrength: 0.5
+  arcUndulationFrequency: 4.5
+  arcUndulationSpeed: 1.35
   showWarningWave: 1
   warningRadius: 0.55
   warningTrigger: SnoreWarning

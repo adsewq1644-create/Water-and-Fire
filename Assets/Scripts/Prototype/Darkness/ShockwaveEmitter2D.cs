@@ -32,6 +32,9 @@ public struct ShockwaveRequest
     public float VisualWidthMultiplier;
     public Vector2 ArcDirection;
     public float ArcAngle;
+    public float ArcUndulationStrength;
+    public float ArcUndulationFrequency;
+    public float ArcUndulationSpeed;
 }
 
 [DisallowMultipleComponent]
@@ -161,9 +164,25 @@ public sealed class ShockwaveEmitter2D : MonoBehaviour
         request.Radius = Mathf.Max(0f, request.Radius);
         request.Duration = Mathf.Max(0f, request.Duration);
         request.VisualWidthMultiplier = Mathf.Max(0.1f, request.VisualWidthMultiplier);
+        request.ArcUndulationStrength = Mathf.Clamp01(
+            request.ArcUndulationStrength);
+        request.ArcUndulationFrequency = Mathf.Clamp(
+            request.ArcUndulationFrequency,
+            0f,
+            12f);
+        request.ArcUndulationSpeed = Mathf.Clamp(
+            request.ArcUndulationSpeed,
+            0f,
+            4f);
         request.ArcAngle = request.Shape == ShockwaveShape.FullCircle
             ? 360f
             : Mathf.Clamp(request.ArcAngle <= 0f ? 180f : request.ArcAngle, 1f, 360f);
+
+        if (request.SourceType != ShockwaveSourceType.CreatureSnore ||
+            request.Shape == ShockwaveShape.FullCircle)
+        {
+            request.ArcUndulationStrength = 0f;
+        }
 
         if (request.ArcDirection.sqrMagnitude < 0.0001f)
         {

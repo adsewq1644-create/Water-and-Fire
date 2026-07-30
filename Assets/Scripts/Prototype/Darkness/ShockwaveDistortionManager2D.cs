@@ -207,12 +207,12 @@ public static class ShockwaveDistortionManager2D
                 wave.Style.bandSoftness,
                 progress,
                 wave.Style.tangentialStrength,
-                0f);
+                wave.Request.ArcUndulationStrength);
             arcDirections[visibleWaveCount] = new Vector4(
                 arcDirection.x,
                 arcDirection.y,
-                0f,
-                0f);
+                wave.Request.ArcUndulationFrequency,
+                wave.Request.ArcUndulationSpeed);
             waveTints[visibleWaveCount] = wave.Style.tint;
             visibleWaveCount++;
         }

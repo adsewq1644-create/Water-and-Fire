@@ -169,6 +169,39 @@ Shader "Hidden/WaterAndFire/ShockwaveDistortion2D"
                     float radiusJitterReference = min(radius, width * 3.0);
                     float noisyRadius =
                         radius + noise * radiusJitterReference * parameters1.y;
+
+                    // Creature snore waves advance a deformation phase along
+                    // the arc while the radius expands. The lobes therefore
+                    // flow sideways instead of scaling as a frozen silhouette.
+                    float2 arcDirection = normalize(
+                        _ShockwaveArcDirections[index].xy);
+                    float2 arcTangent =
+                        float2(-arcDirection.y, arcDirection.x);
+                    float arcCoordinate = atan2(
+                        dot(radialDirection, arcTangent),
+                        dot(radialDirection, arcDirection));
+                    float undulationFrequency =
+                        _ShockwaveArcDirections[index].z;
+                    float undulationSpeed =
+                        _ShockwaveArcDirections[index].w;
+                    float undulationPhase =
+                        arcCoordinate * undulationFrequency -
+                        parameters3.y * undulationSpeed * 6.2831853;
+                    float primaryUndulation = sin(undulationPhase);
+                    float secondaryUndulation = sin(
+                        arcCoordinate * undulationFrequency * 0.57 +
+                        parameters3.y *
+                        undulationSpeed *
+                        6.2831853 *
+                        0.73 +
+                        1.7);
+                    float travelingUndulation =
+                        (primaryUndulation + secondaryUndulation * 0.28) /
+                        1.28;
+                    noisyRadius +=
+                        travelingUndulation *
+                        width *
+                        parameters3.w;
                     float signedDistance = distanceFromCenter - noisyRadius;
 
                     float arcMask = ArcMask(
