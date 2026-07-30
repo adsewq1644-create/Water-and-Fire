@@ -20,7 +20,8 @@ public static class ShockwaveDistortionManager2D
         [Range(0.5f, 16f)] public float rippleFrequency;
         [Range(0f, 16f)] public float rippleSpeed;
         [Range(0f, 1f)] public float trailStrength;
-        [Range(0f, 0.3f)] public float highlightStrength;
+        [Range(0f, 0.2f)] public float tangentialStrength;
+        [Range(0f, 0.05f)] public float highlightStrength;
         [Range(0.001f, 0.4f)] public float arcEdgeFade;
         [Range(0f, 0.4f)] public float fadeInFraction;
         [Range(0.2f, 1f)] public float fadeOutStartFraction;
@@ -205,7 +206,7 @@ public static class ShockwaveDistortionManager2D
             waveParameters3[visibleWaveCount] = new Vector4(
                 wave.Style.bandSoftness,
                 progress,
-                0f,
+                wave.Style.tangentialStrength,
                 0f);
             arcDirections[visibleWaveCount] = new Vector4(
                 arcDirection.x,
@@ -256,7 +257,11 @@ public static class ShockwaveDistortionManager2D
         style.rippleFrequency = Mathf.Clamp(style.rippleFrequency, 0.5f, 16f);
         style.rippleSpeed = Mathf.Clamp(style.rippleSpeed, 0f, 16f);
         style.trailStrength = Mathf.Clamp01(style.trailStrength);
-        style.highlightStrength = Mathf.Clamp(style.highlightStrength, 0f, 0.3f);
+        style.tangentialStrength = Mathf.Clamp(
+            style.tangentialStrength,
+            0f,
+            0.2f);
+        style.highlightStrength = Mathf.Clamp(style.highlightStrength, 0f, 0.05f);
         style.arcEdgeFade = Mathf.Clamp(style.arcEdgeFade, 0.001f, 0.4f);
         style.fadeInFraction = Mathf.Clamp(style.fadeInFraction, 0f, 0.4f);
         style.fadeOutStartFraction = Mathf.Clamp(

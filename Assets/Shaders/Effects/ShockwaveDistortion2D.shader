@@ -164,8 +164,11 @@ Shader "Hidden/WaterAndFire/ShockwaveDistortion2D"
                         + radius * parameters1.x
                         + _Time.y * parameters1.z);
                     noise = noise * 2.0 - 1.0;
+                    // Keep the silhouette stable as the wave expands. Noise only
+                    // offsets a small fraction of the pressure-band width.
+                    float radiusJitterReference = min(radius, width * 3.0);
                     float noisyRadius =
-                        radius + noise * radius * parameters1.y;
+                        radius + noise * radiusJitterReference * parameters1.y;
                     float signedDistance = distanceFromCenter - noisyRadius;
 
                     float arcMask = ArcMask(
@@ -194,14 +197,20 @@ Shader "Hidden/WaterAndFire/ShockwaveDistortion2D"
                         width * 0.3,
                         softness);
 
+                    float normalizedBandDistance = signedDistance / width;
                     float phase =
-                        (signedDistance / width) * parameters2.x
-                        - _Time.y * parameters2.y
-                        + noise * 1.7;
-                    float ripple =
-                        leading * 0.75
-                        + sin(phase) * mainBand
-                        - trailing * parameters2.z;
+                        normalizedBandDistance * parameters2.x
+                        - _Time.y * parameters2.y * 0.35
+                        + noise * 0.35;
+                    float gentleRipple = sin(phase) * 0.1;
+
+                    // A pressure wave reads as one broad displacement:
+                    // compression at the front, a wide moving air mass, then a
+                    // weaker opposite pull as the image returns to rest.
+                    float broadPressure =
+                        leading * 0.55
+                        + mainBand * (0.42 + gentleRipple)
+                        - trailing * parameters2.z * 0.45;
                     float waveMask =
                         arcMask *
                         zoneMask *
@@ -209,11 +218,24 @@ Shader "Hidden/WaterAndFire/ShockwaveDistortion2D"
                         _ShockwaveGlobalStrength;
                     float2 screenRadialDirection =
                         radialDirection / float2(aspect, 1.0);
+                    float2 screenTangentDirection =
+                        float2(-radialDirection.y, radialDirection.x) /
+                        float2(aspect, 1.0);
+                    float organicShear =
+                        noise * 0.7 +
+                        sin(phase * 0.65) * 0.3;
 
                     accumulatedOffset +=
                         screenRadialDirection *
-                        ripple *
+                        broadPressure *
                         parameters0.x *
+                        waveMask;
+                    accumulatedOffset +=
+                        screenTangentDirection *
+                        organicShear *
+                        parameters0.x *
+                        parameters3.z *
+                        mainBand *
                         waveMask;
                     accumulatedHighlight +=
                         _ShockwaveTints[index].rgb *
