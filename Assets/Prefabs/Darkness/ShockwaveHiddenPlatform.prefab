@@ -98,10 +98,11 @@ MonoBehaviour:
   platformColliders:
   - {fileID: 100002}
   particleMaterial: {fileID: 2100000, guid: 4da844ed502a5fe4e84c1df0afcec736, type: 2}
-  revealDuration: 2.5
+  revealDuration: 2
   fadeInTime: 0.08
   fadeOutTime: 0.32
   minimumRevealInterval: 0.08
+  creatureSnoreRevealDuration: 1.75
   idleSilhouetteAlpha: 0
   edgeGlowColor: {r: 0.42, g: 1.15, b: 2.1, a: 1}
   edgeGlowAlpha: 0.34

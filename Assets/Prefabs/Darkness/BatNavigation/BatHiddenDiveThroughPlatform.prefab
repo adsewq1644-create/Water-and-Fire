@@ -233,6 +233,7 @@ MonoBehaviour:
   fadeInTime: 0.08
   fadeOutTime: 0.32
   minimumRevealInterval: 0.08
+  creatureSnoreRevealDuration: 1.75
   idleSilhouetteAlpha: 0
   edgeGlowColor: {r: 1, g: 0.83, b: 0.25, a: 1}
   edgeGlowAlpha: 0.34
@@ -253,6 +254,7 @@ MonoBehaviour:
   particleNoiseStrength: 0.1
   edgeParticleMultiplier: 0.6
   cornerParticleMultiplier: 1.2
+  followPlatformDuringReveal: 0
   revealIntensity: 1
   enableLandingFeedback: 0
   landingBurstDuration: 0.7

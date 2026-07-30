@@ -179,6 +179,7 @@ public class PlayerCharacter : MonoBehaviour
     public bool IsDiveBounceGroundIgnored => bouncePlatformGroundIgnoreTimer > 0f;
     public bool IsGrounded => grounded;
     public bool IsOnStableGround => grounded && IsStableGroundCollider(lastGroundHit.collider);
+    public Collider2D CurrentGroundCollider => grounded ? lastGroundHit.collider : null;
     public Vector2 Velocity => body != null ? body.linearVelocity : Vector2.zero;
     public bool HasLastSafePosition => hasLastSafePosition;
     public Vector3 LastSafePosition => hasLastSafePosition ? lastSafePosition : spawnPosition;
@@ -198,6 +199,83 @@ public class PlayerCharacter : MonoBehaviour
 
         dragging = false;
         SetAimVisualsVisible(false);
+    }
+
+    public bool IsStandingOnCollider(Collider2D platformCollider)
+    {
+        Collider2D groundCollider = CurrentGroundCollider;
+        if (platformCollider == null || groundCollider == null)
+        {
+            return false;
+        }
+
+        return groundCollider == platformCollider ||
+            groundCollider.transform == platformCollider.transform ||
+            groundCollider.transform.IsChildOf(platformCollider.transform) ||
+            platformCollider.transform.IsChildOf(groundCollider.transform);
+    }
+
+    public bool CanRideMovingPlatform(Collider2D platformCollider, float maximumSeparation)
+    {
+        if (platformCollider == null ||
+            body == null ||
+            bodyCollider == null ||
+            !IsAliveLike ||
+            isDiving)
+        {
+            return false;
+        }
+
+        if (IsStandingOnCollider(platformCollider))
+        {
+            return true;
+        }
+
+        if (body.linearVelocity.y > 0.1f && jumpConsumedUntilLanding)
+        {
+            return false;
+        }
+
+        Bounds playerBounds = bodyCollider.bounds;
+        Bounds platformBounds = platformCollider.bounds;
+        float horizontalMargin = 0.03f;
+        bool horizontallySupported =
+            playerBounds.max.x >= platformBounds.min.x + horizontalMargin &&
+            playerBounds.min.x <= platformBounds.max.x - horizontalMargin;
+        float separation = playerBounds.min.y - platformBounds.max.y;
+        bool nearTopSurface =
+            playerBounds.center.y > platformBounds.center.y &&
+            separation >= -0.08f &&
+            separation <= Mathf.Max(0.01f, maximumSeparation);
+
+        return horizontallySupported && nearTopSurface;
+    }
+
+    public void ApplyMovingPlatformDisplacement(Vector2 displacement, Collider2D platformCollider)
+    {
+        if (body == null ||
+            displacement.sqrMagnitude <= 0f ||
+            !CanRideMovingPlatform(platformCollider, 0.24f))
+        {
+            return;
+        }
+
+        body.MovePosition(body.position + displacement);
+    }
+
+    public void ApplyMovingPlatformTargetPosition(Vector2 targetPosition, Collider2D platformCollider)
+    {
+        if (body == null || !CanRideMovingPlatform(platformCollider, 0.28f))
+        {
+            return;
+        }
+
+        if (!jumpConsumedUntilLanding)
+        {
+            body.linearVelocity = new Vector2(body.linearVelocity.x, 0f);
+        }
+
+        body.MovePosition(targetPosition);
     }
 
     public void SuppressDiveLandingStunThisImpact()
@@ -459,6 +537,7 @@ public class PlayerCharacter : MonoBehaviour
     {
         body = GetComponent<Rigidbody2D>();
         bodyCollider = GetComponent<Collider2D>();
+        body.interpolation = RigidbodyInterpolation2D.Interpolate;
         jumpKey = KeyCode.Space;
         ApplyFrictionlessColliderMaterial();
         spriteRenderer = GetComponent<SpriteRenderer>();

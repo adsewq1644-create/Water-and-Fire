@@ -3,6 +3,7 @@ using UnityEngine;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))]
+[DefaultExecutionOrder(100)]
 public sealed class CircularMovingPlatform2D : MonoBehaviour
 {
     [Header("Orbit")]
@@ -29,9 +30,13 @@ public sealed class CircularMovingPlatform2D : MonoBehaviour
     [SerializeField] private bool showGizmos = true;
 
     private const float MinMoveDistance = 0.0001f;
+    private const float RiderProbePenetration = 0.04f;
     private readonly RaycastHit2D[] castHits = new RaycastHit2D[16];
     private readonly Collider2D[] riderHits = new Collider2D[16];
     private readonly List<Rigidbody2D> carriedBodies = new List<Rigidbody2D>(4);
+    private readonly Dictionary<Rigidbody2D, Vector2> riderRelativePositions =
+        new Dictionary<Rigidbody2D, Vector2>(4);
+    private readonly List<Rigidbody2D> staleRiders = new List<Rigidbody2D>(4);
 
     private Rigidbody2D body;
     private Collider2D platformCollider;
@@ -239,9 +244,8 @@ public sealed class CircularMovingPlatform2D : MonoBehaviour
         filter.SetLayerMask(riderMask);
         filter.useTriggers = false;
 
-        Vector2 center = transform.TransformPoint(riderProbeOffset);
-        float angle = transform.eulerAngles.z;
-        int hitCount = Physics2D.OverlapBox(center, riderProbeSize, angle, filter, riderHits);
+        GetRiderProbeGeometry(out Vector2 center, out Vector2 size, out float angle);
+        int hitCount = Physics2D.OverlapBox(center, size, angle, filter, riderHits);
         for (int i = 0; i < hitCount; i++)
         {
             Collider2D hit = riderHits[i];
@@ -256,11 +260,29 @@ public sealed class CircularMovingPlatform2D : MonoBehaviour
                 continue;
             }
 
+            PlayerCharacter player = hit.GetComponentInParent<PlayerCharacter>();
+            bool isKnownRider = riderRelativePositions.ContainsKey(riderBody);
+            bool canRide = player == null ||
+                (isKnownRider
+                    ? player.CanRideMovingPlatform(platformCollider, 0.28f)
+                    : player.IsStandingOnCollider(platformCollider));
+            if (!canRide)
+            {
+                continue;
+            }
+
             if (!carriedBodies.Contains(riderBody))
             {
                 carriedBodies.Add(riderBody);
             }
+
+            if (player != null && !riderRelativePositions.ContainsKey(riderBody))
+            {
+                riderRelativePositions.Add(riderBody, riderBody.position - body.position);
+            }
         }
+
+        CollectPersistedRiders();
     }
 
     private void CarryCollectedRiders(Vector2 delta)
@@ -270,9 +292,95 @@ public sealed class CircularMovingPlatform2D : MonoBehaviour
             Rigidbody2D riderBody = carriedBodies[i];
             if (riderBody != null)
             {
-                riderBody.position += delta;
+                PlayerCharacter player = riderBody.GetComponent<PlayerCharacter>();
+                if (player != null)
+                {
+                    if (!riderRelativePositions.TryGetValue(riderBody, out Vector2 relativePosition))
+                    {
+                        relativePosition = riderBody.position - body.position;
+                        riderRelativePositions[riderBody] = relativePosition;
+                    }
+
+                    if (!Mathf.Approximately(player.CurrentMoveInput, 0f))
+                    {
+                        relativePosition.x += riderBody.linearVelocity.x * Time.fixedDeltaTime;
+                        riderRelativePositions[riderBody] = relativePosition;
+                    }
+
+                    Vector2 targetPosition = body.position + delta + relativePosition;
+                    player.ApplyMovingPlatformTargetPosition(targetPosition, platformCollider);
+                }
+                else
+                {
+                    riderBody.position += delta;
+                }
             }
         }
+    }
+
+    private void CollectPersistedRiders()
+    {
+        staleRiders.Clear();
+        foreach (KeyValuePair<Rigidbody2D, Vector2> pair in riderRelativePositions)
+        {
+            Rigidbody2D riderBody = pair.Key;
+            if (riderBody == null)
+            {
+                staleRiders.Add(riderBody);
+                continue;
+            }
+
+            if (carriedBodies.Contains(riderBody))
+            {
+                continue;
+            }
+
+            PlayerCharacter player = riderBody.GetComponent<PlayerCharacter>();
+            if (player != null && player.CanRideMovingPlatform(platformCollider, 0.28f))
+            {
+                carriedBodies.Add(riderBody);
+                continue;
+            }
+
+            staleRiders.Add(riderBody);
+        }
+
+        for (int i = 0; i < staleRiders.Count; i++)
+        {
+            riderRelativePositions.Remove(staleRiders[i]);
+        }
+    }
+
+    private void GetRiderProbeGeometry(out Vector2 center, out Vector2 size, out float angle)
+    {
+        float probeHeight = Mathf.Max(0.01f, riderProbeSize.y);
+        if (platformCollider is BoxCollider2D box)
+        {
+            Transform colliderTransform = box.transform;
+            float worldWidth = box.size.x *
+                ((Vector2)colliderTransform.TransformVector(Vector2.right)).magnitude;
+            Vector2 topCenter = colliderTransform.TransformPoint(
+                box.offset + Vector2.up * (box.size.y * 0.5f));
+            Vector2 up = colliderTransform.up;
+
+            center = topCenter +
+                up * ((probeHeight - RiderProbePenetration) * 0.5f) +
+                (Vector2)colliderTransform.right * riderProbeOffset.x;
+            size = new Vector2(
+                Mathf.Max(worldWidth, riderProbeSize.x),
+                probeHeight + RiderProbePenetration);
+            angle = colliderTransform.eulerAngles.z;
+            return;
+        }
+
+        Bounds bounds = platformCollider.bounds;
+        center = new Vector2(
+            bounds.center.x + riderProbeOffset.x,
+            bounds.max.y + (probeHeight - RiderProbePenetration) * 0.5f);
+        size = new Vector2(
+            Mathf.Max(bounds.size.x, riderProbeSize.x),
+            probeHeight + RiderProbePenetration);
+        angle = 0f;
     }
 
     private void OnValidate()

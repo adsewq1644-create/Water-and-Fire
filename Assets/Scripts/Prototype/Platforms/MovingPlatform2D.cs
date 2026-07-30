@@ -9,6 +9,7 @@ public enum MovingPlatformLimitMode
 }
 
 [RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))]
+[DefaultExecutionOrder(100)]
 public class MovingPlatform2D : MonoBehaviour
 {
     [Header("Movement")]
@@ -35,6 +36,7 @@ public class MovingPlatform2D : MonoBehaviour
     [SerializeField] private bool showGizmos = true;
 
     private const float MinMoveDistance = 0.0001f;
+    private const float RiderProbePenetration = 0.04f;
     private readonly RaycastHit2D[] castHits = new RaycastHit2D[16];
     private readonly Collider2D[] riderHits = new Collider2D[16];
     private readonly List<Rigidbody2D> carriedBodies = new List<Rigidbody2D>(4);
@@ -232,9 +234,8 @@ public class MovingPlatform2D : MonoBehaviour
         filter.SetLayerMask(riderMask);
         filter.useTriggers = false;
 
-        Vector2 center = (Vector2)transform.TransformPoint(riderProbeOffset);
-        float angle = transform.eulerAngles.z;
-        int hitCount = Physics2D.OverlapBox(center, riderProbeSize, angle, filter, riderHits);
+        GetRiderProbeGeometry(out Vector2 center, out Vector2 size, out float angle);
+        int hitCount = Physics2D.OverlapBox(center, size, angle, filter, riderHits);
         for (int i = 0; i < hitCount; i++)
         {
             Collider2D hit = riderHits[i];
@@ -245,6 +246,12 @@ public class MovingPlatform2D : MonoBehaviour
 
             Rigidbody2D riderBody = hit.attachedRigidbody;
             if (riderBody == null || riderBody == body || riderBody.bodyType == RigidbodyType2D.Static)
+            {
+                continue;
+            }
+
+            PlayerCharacter player = hit.GetComponentInParent<PlayerCharacter>();
+            if (player != null && !player.CanRideMovingPlatform(platformCollider, 0.24f))
             {
                 continue;
             }
@@ -271,8 +278,48 @@ public class MovingPlatform2D : MonoBehaviour
                 continue;
             }
 
-            riderBody.position = riderBody.position + delta;
+            PlayerCharacter player = riderBody.GetComponent<PlayerCharacter>();
+            if (player != null)
+            {
+                player.ApplyMovingPlatformDisplacement(delta, platformCollider);
+            }
+            else
+            {
+                riderBody.position += delta;
+            }
         }
+    }
+
+    private void GetRiderProbeGeometry(out Vector2 center, out Vector2 size, out float angle)
+    {
+        float probeHeight = Mathf.Max(0.01f, riderProbeSize.y);
+        if (platformCollider is BoxCollider2D box)
+        {
+            Transform colliderTransform = box.transform;
+            float worldWidth = box.size.x *
+                ((Vector2)colliderTransform.TransformVector(Vector2.right)).magnitude;
+            Vector2 topCenter = colliderTransform.TransformPoint(
+                box.offset + Vector2.up * (box.size.y * 0.5f));
+            Vector2 up = colliderTransform.up;
+
+            center = topCenter +
+                up * ((probeHeight - RiderProbePenetration) * 0.5f) +
+                (Vector2)colliderTransform.right * riderProbeOffset.x;
+            size = new Vector2(
+                Mathf.Max(worldWidth, riderProbeSize.x),
+                probeHeight + RiderProbePenetration);
+            angle = colliderTransform.eulerAngles.z;
+            return;
+        }
+
+        Bounds bounds = platformCollider.bounds;
+        center = new Vector2(
+            bounds.center.x + riderProbeOffset.x,
+            bounds.max.y + (probeHeight - RiderProbePenetration) * 0.5f);
+        size = new Vector2(
+            Mathf.Max(bounds.size.x, riderProbeSize.x),
+            probeHeight + RiderProbePenetration);
+        angle = 0f;
     }
 
     private void OnDrawGizmosSelected()
@@ -288,10 +335,18 @@ public class MovingPlatform2D : MonoBehaviour
         Gizmos.DrawLine(origin, origin + (Vector3)(direction * 1.25f));
         Gizmos.DrawWireSphere(origin + (Vector3)(direction * 1.25f), 0.06f);
 
-        Gizmos.color = new Color(0.3f, 0.8f, 1f, 0.75f);
-        Matrix4x4 oldMatrix = Gizmos.matrix;
-        Gizmos.matrix = Matrix4x4.TRS(transform.TransformPoint(riderProbeOffset), transform.rotation, Vector3.one);
-        Gizmos.DrawWireCube(Vector3.zero, new Vector3(riderProbeSize.x, riderProbeSize.y, 0f));
-        Gizmos.matrix = oldMatrix;
+        CacheReferences();
+        if (platformCollider != null)
+        {
+            GetRiderProbeGeometry(out Vector2 center, out Vector2 size, out float angle);
+            Gizmos.color = new Color(0.3f, 0.8f, 1f, 0.75f);
+            Matrix4x4 oldMatrix = Gizmos.matrix;
+            Gizmos.matrix = Matrix4x4.TRS(
+                center,
+                Quaternion.Euler(0f, 0f, angle),
+                Vector3.one);
+            Gizmos.DrawWireCube(Vector3.zero, new Vector3(size.x, size.y, 0f));
+            Gizmos.matrix = oldMatrix;
+        }
     }
 }

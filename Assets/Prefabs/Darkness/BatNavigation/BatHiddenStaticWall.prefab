@@ -115,10 +115,11 @@ MonoBehaviour:
   platformColliders:
   - {fileID: 2003465228181838326}
   particleMaterial: {fileID: 2100000, guid: 4da844ed502a5fe4e84c1df0afcec736, type: 2}
-  revealDuration: 2.5
+  revealDuration: 2
   fadeInTime: 0.08
   fadeOutTime: 0.32
   minimumRevealInterval: 0.08
+  creatureSnoreRevealDuration: 1.75
   idleSilhouetteAlpha: 0
   edgeGlowColor: {r: 0.7799925, g: 2.0999796, b: 2.0999796, a: 1}
   edgeGlowAlpha: 0.34
@@ -139,6 +140,7 @@ MonoBehaviour:
   particleNoiseStrength: 0.1
   edgeParticleMultiplier: 0.6
   cornerParticleMultiplier: 1.2
+  followPlatformDuringReveal: 0
   revealIntensity: 1
   enableLandingFeedback: 0
   landingBurstDuration: 0.7

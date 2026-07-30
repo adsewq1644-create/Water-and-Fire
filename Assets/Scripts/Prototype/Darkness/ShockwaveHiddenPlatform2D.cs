@@ -35,6 +35,9 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
     [SerializeField, Min(0f)] private float fadeOutTime = 0.32f;
     [SerializeField, Min(0f)] private float minimumRevealInterval = 0.08f;
 
+    [Header("Source Overrides")]
+    [SerializeField, Min(0.05f)] private float creatureSnoreRevealDuration = 1.75f;
+
     [Header("Hidden Surface")]
     [SerializeField, Range(0f, 0.08f)] private float idleSilhouetteAlpha;
 
@@ -60,6 +63,7 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
     [SerializeField, Min(0f)] private float particleNoiseStrength = 0.1f;
     [SerializeField, Range(0.1f, 4f)] private float edgeParticleMultiplier = 0.6f;
     [SerializeField, Range(0f, 6f)] private float cornerParticleMultiplier = 1.2f;
+    [SerializeField] private bool followPlatformDuringReveal;
 
     [Header("Reveal Strength")]
     [FormerlySerializedAs("maxIntensity")]
@@ -134,12 +138,14 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         }
 
         lastRevealTime = Time.time;
-        RevealFromShockwave(revealDuration, revealIntensity);
+        bool isCreatureSnore = context.SourceType == ShockwaveSourceType.CreatureSnore;
+        float duration = isCreatureSnore ? creatureSnoreRevealDuration : revealDuration;
+        RevealFromShockwave(duration, revealIntensity, isCreatureSnore);
     }
 
     public void RevealFromShockwave(float duration)
     {
-        RevealFromShockwave(duration, revealIntensity);
+        RevealFromShockwave(duration, revealIntensity, useFullLifetime: false);
     }
 
     public void ShowLandingBurst()
@@ -249,7 +255,7 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         CacheBaseSilhouetteColors(forceRefresh: true);
     }
 
-    private void RevealFromShockwave(float duration, float intensity)
+    private void RevealFromShockwave(float duration, float intensity, bool useFullLifetime)
     {
         PrepareEdgeEffects();
         if (activeSegments.Count == 0)
@@ -260,9 +266,12 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         float clampedDuration = Mathf.Max(0.05f, duration);
         EmitRevealPulse(
             Mathf.Max(0f, intensity),
-            Mathf.Min(particleLifetimeMax, clampedDuration),
+            useFullLifetime
+                ? clampedDuration
+                : Mathf.Min(particleLifetimeMax, clampedDuration),
             1f,
-            includeCornerSpores: true);
+            includeCornerSpores: true,
+            useFullLifetime: useFullLifetime);
     }
 
     private void PrepareEdgeEffects()
@@ -519,7 +528,9 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         var main = particles.main;
         main.loop = false;
         main.playOnAwake = false;
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.simulationSpace = followPlatformDuringReveal
+            ? ParticleSystemSimulationSpace.Local
+            : ParticleSystemSimulationSpace.World;
         main.maxParticles = 1200;
 
         var emission = particles.emission;
@@ -591,8 +602,12 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         var main = particles.main;
         main.loop = false;
         main.playOnAwake = false;
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.scalingMode = ParticleSystemScalingMode.Shape;
+        main.simulationSpace = followPlatformDuringReveal
+            ? ParticleSystemSimulationSpace.Local
+            : ParticleSystemSimulationSpace.World;
+        main.scalingMode = followPlatformDuringReveal
+            ? ParticleSystemScalingMode.Hierarchy
+            : ParticleSystemScalingMode.Shape;
         main.maxParticles = 1200;
 
         var noise = particles.noise;
@@ -820,7 +835,8 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         float intensity,
         float lifetimeCap,
         float countMultiplier,
-        bool includeCornerSpores)
+        bool includeCornerSpores,
+        bool useFullLifetime = false)
     {
         if (edgeGlowParticles == null || sporeParticles == null)
         {
@@ -840,15 +856,31 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         float clampedIntensity = Mathf.Max(0f, intensity);
         float clampedLifetime = Mathf.Max(0.05f, lifetimeCap);
         float clampedCountMultiplier = Mathf.Max(0.01f, countMultiplier);
-        EmitSparseEdgeGlow(clampedIntensity, clampedLifetime, clampedCountMultiplier);
-        EmitSurfaceSpores(clampedIntensity, clampedLifetime, clampedCountMultiplier);
+        EmitSparseEdgeGlow(
+            clampedIntensity,
+            clampedLifetime,
+            clampedCountMultiplier,
+            useFullLifetime);
+        EmitSurfaceSpores(
+            clampedIntensity,
+            clampedLifetime,
+            clampedCountMultiplier,
+            useFullLifetime);
         if (includeCornerSpores)
         {
-            EmitCornerSpores(clampedIntensity, clampedLifetime, clampedCountMultiplier);
+            EmitCornerSpores(
+                clampedIntensity,
+                clampedLifetime,
+                clampedCountMultiplier,
+                useFullLifetime);
         }
     }
 
-    private void EmitSparseEdgeGlow(float intensity, float lifetimeCap, float countMultiplier)
+    private void EmitSparseEdgeGlow(
+        float intensity,
+        float lifetimeCap,
+        float countMultiplier,
+        bool useFullLifetime)
     {
         float spacing = Mathf.Max(0.14f, edgeGlowWidth * 3.8f);
         for (int segmentIndex = 0; segmentIndex < activeSegments.Count; segmentIndex++)
@@ -881,14 +913,18 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
                     position,
                     segment.Normal * Random.Range(0f, particleSpeedMin * 0.35f),
                     Random.Range(edgeGlowWidth * 0.65f, edgeGlowWidth * 1.2f),
-                    Mathf.Min(lifetimeCap, Random.Range(particleLifetimeMin, particleLifetimeMax)),
+                    ResolveParticleLifetime(lifetimeCap, useFullLifetime),
                     edgeGlowColor,
                     edgeGlowAlpha * intensity);
             }
         }
     }
 
-    private void EmitSurfaceSpores(float intensity, float lifetimeCap, float countMultiplier)
+    private void EmitSurfaceSpores(
+        float intensity,
+        float lifetimeCap,
+        float countMultiplier,
+        bool useFullLifetime)
     {
         int count = Mathf.Clamp(
             Mathf.RoundToInt(particleCount * edgeParticleMultiplier * intensity * countMultiplier),
@@ -907,11 +943,21 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
             Vector2 position = Vector2.Lerp(segment.Start, segment.End, Random.value);
             position += tangent * Random.Range(-edgeGlowJitter, edgeGlowJitter);
             position += segment.Normal * Random.Range(0f, edgeGlowJitter * 1.8f);
-            EmitSpore(position, segment.Normal, intensity, 1f, lifetimeCap);
+            EmitSpore(
+                position,
+                segment.Normal,
+                intensity,
+                1f,
+                lifetimeCap,
+                useFullLifetime);
         }
     }
 
-    private void EmitCornerSpores(float intensity, float lifetimeCap, float countMultiplier)
+    private void EmitCornerSpores(
+        float intensity,
+        float lifetimeCap,
+        float countMultiplier,
+        bool useFullLifetime)
     {
         int perCorner = Mathf.Clamp(
             Mathf.RoundToInt(cornerParticleMultiplier * intensity * countMultiplier),
@@ -922,7 +968,13 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
             for (int i = 0; i < perCorner; i++)
             {
                 Vector2 position = cornerPoints[cornerIndex] + Random.insideUnitCircle * edgeGlowJitter;
-                EmitSpore(position, Vector2.up, intensity, edgeGlowCornerBoost, lifetimeCap);
+                EmitSpore(
+                    position,
+                    Vector2.up,
+                    intensity,
+                    edgeGlowCornerBoost,
+                    lifetimeCap,
+                    useFullLifetime);
             }
         }
     }
@@ -932,7 +984,8 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         Vector2 surfaceNormal,
         float intensity,
         float sizeBoost,
-        float lifetimeCap)
+        float lifetimeCap,
+        bool useFullLifetime)
     {
         Vector2 randomDirection = Random.insideUnitCircle;
         if (randomDirection.sqrMagnitude < 0.0001f)
@@ -948,12 +1001,19 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
             position,
             direction * speed,
             Random.Range(particleSizeMin, particleSizeMax) * sizeBoost,
-            Mathf.Min(lifetimeCap, Random.Range(particleLifetimeMin, particleLifetimeMax)),
+            ResolveParticleLifetime(lifetimeCap, useFullLifetime),
             particleColor,
             particleAlpha * intensity);
     }
 
-    private static void EmitParticle(
+    private float ResolveParticleLifetime(float lifetimeCap, bool useFullLifetime)
+    {
+        return useFullLifetime
+            ? Mathf.Max(0.05f, lifetimeCap)
+            : Mathf.Min(lifetimeCap, Random.Range(particleLifetimeMin, particleLifetimeMax));
+    }
+
+    private void EmitParticle(
         ParticleSystem particles,
         Vector2 position,
         Vector2 velocity,
@@ -968,10 +1028,18 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
         }
 
         color.a = Mathf.Clamp01(alpha);
+        Vector3 particlePosition = position;
+        Vector3 particleVelocity = velocity;
+        if (followPlatformDuringReveal)
+        {
+            particlePosition = particles.transform.InverseTransformPoint(position);
+            particleVelocity = particles.transform.InverseTransformVector(velocity);
+        }
+
         var emit = new ParticleSystem.EmitParams
         {
-            position = position,
-            velocity = velocity,
+            position = particlePosition,
+            velocity = particleVelocity,
             startSize = Mathf.Max(0.001f, size),
             startLifetime = Mathf.Max(0.05f, lifetime),
             startColor = color
@@ -1026,6 +1094,7 @@ public sealed class ShockwaveHiddenPlatform2D : MonoBehaviour, IShockwaveContext
     private void OnValidate()
     {
         revealDuration = Mathf.Max(0.05f, revealDuration);
+        creatureSnoreRevealDuration = Mathf.Max(0.05f, creatureSnoreRevealDuration);
         fadeInTime = Mathf.Clamp(fadeInTime, 0f, revealDuration);
         fadeOutTime = Mathf.Clamp(fadeOutTime, 0f, revealDuration);
         minimumRevealInterval = Mathf.Max(0f, minimumRevealInterval);
