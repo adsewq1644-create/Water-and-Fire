@@ -23,7 +23,26 @@ MonoBehaviour:
     blurRadius: 2.2
     downsample: 2
     compositeIntensity: 1
-  shader: {fileID: 0}
+  shader: {fileID: 4800000, guid: 380972f079b04584f89eb2fa5874ae78, type: 3}
+--- !u!114 &-533049668458923416
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 760ae7a1279afd4418dbdc76c3dab592, type: 3}
+  m_Name: Shockwave Screen Distortion
+  m_EditorClassIdentifier: 
+  m_Active: 1
+  settings:
+    enabled: 1
+    showInSceneView: 1
+    globalStrength: 1
+    darkZoneEdgeSoftness: 0.004
+  shader: {fileID: 4800000, guid: 760f7820af09be24e9a5ab7d4d67c30d, type: 3}
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -50,7 +69,8 @@ MonoBehaviour:
     probeVolumeBlendStatesCS: {fileID: 0}
   m_RendererFeatures:
   - {fileID: -7749590332578774349}
-  m_RendererFeatureMap: b342d7cfa6ec7394
+  - {fileID: -533049668458923416}
+  m_RendererFeatureMap: b342d7cfa6ec739468badd97263a9af8
   m_UseNativeRenderPass: 0
   m_LayerMask:
     serializedVersion: 2

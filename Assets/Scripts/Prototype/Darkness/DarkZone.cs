@@ -61,6 +61,34 @@ public class DarkZone : MonoBehaviour
         return false;
     }
 
+    public static int FillViewportRects(
+        Camera camera,
+        Vector4[] viewportRects,
+        int maximumRectCount)
+    {
+        if (camera == null || viewportRects == null || maximumRectCount <= 0)
+        {
+            return 0;
+        }
+
+        int rectCount = 0;
+        registeredZones.RemoveWhere(zone => zone == null);
+        foreach (DarkZone zone in registeredZones)
+        {
+            if (zone == null ||
+                !zone.isActiveAndEnabled ||
+                rectCount >= maximumRectCount ||
+                !zone.TryGetViewportRect(camera, out Vector4 viewportRect))
+            {
+                continue;
+            }
+
+            viewportRects[rectCount++] = viewportRect;
+        }
+
+        return rectCount;
+    }
+
     public bool ContainsPoint(Vector2 worldPoint)
     {
         ResolveZoneCollider();
@@ -68,6 +96,65 @@ public class DarkZone : MonoBehaviour
                zoneCollider.enabled &&
                zoneCollider.gameObject.activeInHierarchy &&
                zoneCollider.OverlapPoint(worldPoint);
+    }
+
+    private bool TryGetViewportRect(Camera camera, out Vector4 viewportRect)
+    {
+        viewportRect = default;
+        ResolveZoneCollider();
+        if (zoneCollider == null ||
+            !zoneCollider.enabled ||
+            !zoneCollider.gameObject.activeInHierarchy)
+        {
+            return false;
+        }
+
+        Bounds bounds = zoneCollider.bounds;
+        Vector3[] corners =
+        {
+            new Vector3(bounds.min.x, bounds.min.y, bounds.center.z),
+            new Vector3(bounds.min.x, bounds.max.y, bounds.center.z),
+            new Vector3(bounds.max.x, bounds.min.y, bounds.center.z),
+            new Vector3(bounds.max.x, bounds.max.y, bounds.center.z)
+        };
+
+        float minimumX = float.PositiveInfinity;
+        float minimumY = float.PositiveInfinity;
+        float maximumX = float.NegativeInfinity;
+        float maximumY = float.NegativeInfinity;
+        bool hasVisibleCorner = false;
+
+        for (int index = 0; index < corners.Length; index++)
+        {
+            Vector3 viewportPoint = camera.WorldToViewportPoint(corners[index]);
+            if (viewportPoint.z <= 0f)
+            {
+                continue;
+            }
+
+            hasVisibleCorner = true;
+            minimumX = Mathf.Min(minimumX, viewportPoint.x);
+            minimumY = Mathf.Min(minimumY, viewportPoint.y);
+            maximumX = Mathf.Max(maximumX, viewportPoint.x);
+            maximumY = Mathf.Max(maximumY, viewportPoint.y);
+        }
+
+        if (!hasVisibleCorner ||
+            maximumX <= 0f ||
+            maximumY <= 0f ||
+            minimumX >= 1f ||
+            minimumY >= 1f)
+        {
+            return false;
+        }
+
+        viewportRect = new Vector4(
+            Mathf.Clamp01(minimumX),
+            Mathf.Clamp01(minimumY),
+            Mathf.Clamp01(maximumX),
+            Mathf.Clamp01(maximumY));
+        return viewportRect.z > viewportRect.x &&
+               viewportRect.w > viewportRect.y;
     }
 
     private void OnTriggerEnter2D(Collider2D other)

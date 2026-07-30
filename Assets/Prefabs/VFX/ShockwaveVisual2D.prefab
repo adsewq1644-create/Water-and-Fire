@@ -44,20 +44,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1614d87c4a60bd442a852a5577a15934, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ringMaterial: {fileID: 2100000, guid: 305484abbb1326248a822fdbeb965950, type: 2}
-  circleSegments: 96
-  semicircleSegments: 56
-  sortingLayerName: Default
-  sortingOrder: 24
-  ringWidth: 0.055
-  softness: 0.34
-  alpha: 0.72
-  glowWidthMultiplier: 2.6
-  glowAlphaMultiplier: 0.22
-  edgeFade: 0.14
-  playerTint: {r: 0.34, g: 1.1, b: 1.8, a: 1}
-  coopTint: {r: 0.58, g: 1.45, b: 0.82, a: 1}
-  creatureTint: {r: 1.15, g: 0.66, b: 1.8, a: 1}
   startRadius: 0.035
+  airBandWidth: 0.32
+  bandSoftness: 0.48
+  distortionStrength: 0.0075
+  noiseScale: 7
+  noiseStrength: 0.018
+  noiseSpeed: 0.8
+  rippleFrequency: 5.5
+  rippleSpeed: 5.2
+  trailStrength: 0.42
+  highlightStrength: 0.055
+  arcEdgeFade: 0.1
+  playerTint: {r: 0.62, g: 0.88, b: 1.1, a: 1}
+  coopTint: {r: 0.65, g: 1.05, b: 0.78, a: 1}
+  creatureTint: {r: 0.88, g: 0.72, b: 1.08, a: 1}
   fadeInFraction: 0.08
-  fadeOutStartFraction: 0.62
+  fadeOutStartFraction: 0.68
