@@ -16,6 +16,7 @@ public class PlayerCharacter : MonoBehaviour
     private static readonly Color ShockwaveGizmoColor = new Color(1f, 0.92f, 0.35f, 0.5f);
     private const float BouncePlatformGroundIgnoreTime = 0.1f;
     private const float MovingPlatformJumpDetachTime = 0.12f;
+    private const float MovingPlatformSupportGraceTime = 0.12f;
 
     [Header("Identity")]
     [SerializeField] private string playerId = "Player";
@@ -127,6 +128,8 @@ public class PlayerCharacter : MonoBehaviour
     private bool grounded;
     private bool jumpConsumedUntilLanding;
     private float movingPlatformJumpDetachTimer;
+    private float movingPlatformSupportTimer;
+    private Collider2D movingPlatformSupportCollider;
     private bool isChargingJump;
     private bool stationaryJumpCharge;
     private float jumpChargeTimer;
@@ -263,6 +266,7 @@ public class PlayerCharacter : MonoBehaviour
             return;
         }
 
+        RegisterMovingPlatformSupport(platformCollider);
         body.MovePosition(body.position + displacement);
     }
 
@@ -273,6 +277,7 @@ public class PlayerCharacter : MonoBehaviour
             return;
         }
 
+        RegisterMovingPlatformSupport(platformCollider);
         if (!jumpConsumedUntilLanding)
         {
             body.linearVelocity = new Vector2(body.linearVelocity.x, 0f);
@@ -688,6 +693,17 @@ public class PlayerCharacter : MonoBehaviour
                 movingPlatformJumpDetachTimer - Time.deltaTime);
         }
 
+        if (movingPlatformSupportTimer > 0f)
+        {
+            movingPlatformSupportTimer = Mathf.Max(
+                0f,
+                movingPlatformSupportTimer - Time.deltaTime);
+            if (movingPlatformSupportTimer <= 0f)
+            {
+                movingPlatformSupportCollider = null;
+            }
+        }
+
         UpdateDownSlamBounceLock();
 
         if (!CanReceiveInput())
@@ -715,6 +731,16 @@ public class PlayerCharacter : MonoBehaviour
         ApplyHeldToolMovementModifiers();
         UpdateSlipperyExitCarryTimer();
         UpdateLeafBounceCurve();
+    }
+
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        RegisterMovingPlatformCollisionSupport(collision);
+    }
+
+    private void OnCollisionStay2D(Collision2D collision)
+    {
+        RegisterMovingPlatformCollisionSupport(collision);
     }
 
     private void UpdateLeafBounceCurve()
@@ -1018,7 +1044,8 @@ public class PlayerCharacter : MonoBehaviour
 
         if (grounded)
         {
-            if (body.linearVelocity.y <= 0.01f && !isDiving)
+            bool groundedOnMovingPlatform = IsMovingPlatformCollider(lastGroundHit.collider);
+            if ((body.linearVelocity.y <= 0.01f || groundedOnMovingPlatform) && !isDiving)
             {
                 jumpConsumedUntilLanding = false;
                 diveUsed = false;
@@ -1167,7 +1194,7 @@ public class PlayerCharacter : MonoBehaviour
             return;
         }
 
-        if (grounded || coyoteTimer > 0f)
+        if (grounded || coyoteTimer > 0f || HasMovingPlatformSupport())
         {
             if (jumpPressed && !jumpConsumedUntilLanding)
             {
@@ -1242,12 +1269,14 @@ public class PlayerCharacter : MonoBehaviour
         ApplyJumpGravityForCurrentJump();
         coyoteTimer = 0f;
         grounded = false;
+        ClearMovingPlatformSupport();
         movingPlatformJumpDetachTimer = MovingPlatformJumpDetachTime;
         body.linearVelocity = new Vector2(horizontalVelocity, verticalVelocity);
     }
 
     private void StartDive()
     {
+        ClearMovingPlatformSupport();
         leafBounceCurveActive = false;
         isChargingJump = false;
         stationaryJumpCharge = false;
@@ -1717,11 +1746,84 @@ public class PlayerCharacter : MonoBehaviour
         RestoreDefaultGravity();
         jumpConsumedUntilLanding = false;
         movingPlatformJumpDetachTimer = 0f;
+        ClearMovingPlatformSupport();
         jumpInputReleasedAfterLaunch = true;
         diveLandingStunTimer = 0f;
         externalKnockbackInputLockTimer = 0f;
         ClearDownSlamBounceLock();
         coyoteTimer = 0f;
+    }
+
+    private bool HasMovingPlatformSupport()
+    {
+        return movingPlatformSupportTimer > 0f &&
+            movingPlatformJumpDetachTimer <= 0f &&
+            movingPlatformSupportCollider != null &&
+            movingPlatformSupportCollider.enabled &&
+            !movingPlatformSupportCollider.isTrigger &&
+            movingPlatformSupportCollider.gameObject.activeInHierarchy;
+    }
+
+    private void RegisterMovingPlatformSupport(Collider2D platformCollider)
+    {
+        if (platformCollider == null || movingPlatformJumpDetachTimer > 0f)
+        {
+            return;
+        }
+
+        movingPlatformSupportCollider = platformCollider;
+        movingPlatformSupportTimer = MovingPlatformSupportGraceTime;
+
+        if (!isDiving)
+        {
+            jumpConsumedUntilLanding = false;
+            diveUsed = false;
+            jumpInputReleasedAfterLaunch = true;
+        }
+    }
+
+    private void RegisterMovingPlatformCollisionSupport(Collision2D collision)
+    {
+        Collider2D platformCollider = collision.collider;
+        if (bodyCollider == null ||
+            platformCollider == null ||
+            platformCollider.isTrigger ||
+            movingPlatformJumpDetachTimer > 0f ||
+            isDiving ||
+            !IsMovingPlatformCollider(platformCollider))
+        {
+            return;
+        }
+
+        Bounds playerBounds = bodyCollider.bounds;
+        if (playerBounds.center.y <= platformCollider.bounds.center.y)
+        {
+            return;
+        }
+
+        float maximumFootContactOffset = Mathf.Max(0.08f, groundCastDistance + 0.08f);
+        for (int i = 0; i < collision.contactCount; i++)
+        {
+            ContactPoint2D contact = collision.GetContact(i);
+            if (Mathf.Abs(contact.point.y - playerBounds.min.y) <= maximumFootContactOffset)
+            {
+                RegisterMovingPlatformSupport(platformCollider);
+                return;
+            }
+        }
+    }
+
+    private static bool IsMovingPlatformCollider(Collider2D platformCollider)
+    {
+        return platformCollider.GetComponentInParent<MovingPlatform2D>() != null ||
+            platformCollider.GetComponentInParent<CircularMovingPlatform2D>() != null ||
+            platformCollider.GetComponentInParent<PingPongMovingPlatform2D>() != null;
+    }
+
+    private void ClearMovingPlatformSupport()
+    {
+        movingPlatformSupportTimer = 0f;
+        movingPlatformSupportCollider = null;
     }
 
     private void ApplyJumpGravityForCurrentJump()
