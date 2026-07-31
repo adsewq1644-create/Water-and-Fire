@@ -15,6 +15,7 @@ public class PlayerCharacter : MonoBehaviour
     private static readonly Color ProjectileColliderGizmoColor = new Color(1f, 0.85f, 0.1f, 0.9f);
     private static readonly Color ShockwaveGizmoColor = new Color(1f, 0.92f, 0.35f, 0.5f);
     private const float BouncePlatformGroundIgnoreTime = 0.1f;
+    private const float MovingPlatformJumpDetachTime = 0.12f;
 
     [Header("Identity")]
     [SerializeField] private string playerId = "Player";
@@ -125,6 +126,7 @@ public class PlayerCharacter : MonoBehaviour
     private float coyoteTimer;
     private bool grounded;
     private bool jumpConsumedUntilLanding;
+    private float movingPlatformJumpDetachTimer;
     private bool isChargingJump;
     private bool stationaryJumpCharge;
     private float jumpChargeTimer;
@@ -221,7 +223,8 @@ public class PlayerCharacter : MonoBehaviour
             body == null ||
             bodyCollider == null ||
             !IsAliveLike ||
-            isDiving)
+            isDiving ||
+            movingPlatformJumpDetachTimer > 0f)
         {
             return false;
         }
@@ -676,6 +679,13 @@ public class PlayerCharacter : MonoBehaviour
         if (externalKnockbackInputLockTimer > 0f)
         {
             externalKnockbackInputLockTimer = Mathf.Max(0f, externalKnockbackInputLockTimer - Time.deltaTime);
+        }
+
+        if (movingPlatformJumpDetachTimer > 0f)
+        {
+            movingPlatformJumpDetachTimer = Mathf.Max(
+                0f,
+                movingPlatformJumpDetachTimer - Time.deltaTime);
         }
 
         UpdateDownSlamBounceLock();
@@ -1232,6 +1242,7 @@ public class PlayerCharacter : MonoBehaviour
         ApplyJumpGravityForCurrentJump();
         coyoteTimer = 0f;
         grounded = false;
+        movingPlatformJumpDetachTimer = MovingPlatformJumpDetachTime;
         body.linearVelocity = new Vector2(horizontalVelocity, verticalVelocity);
     }
 
@@ -1705,6 +1716,7 @@ public class PlayerCharacter : MonoBehaviour
         fullChargeJumpActive = false;
         RestoreDefaultGravity();
         jumpConsumedUntilLanding = false;
+        movingPlatformJumpDetachTimer = 0f;
         jumpInputReleasedAfterLaunch = true;
         diveLandingStunTimer = 0f;
         externalKnockbackInputLockTimer = 0f;
