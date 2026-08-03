@@ -102,12 +102,12 @@ MonoBehaviour:
   respawnDelay: 2
   visualPivot: {fileID: 200001}
   waitingPressScale: {x: 1.1, y: 0.76}
-  successCompressScale: {x: 1.16, y: 0.68}
+  successCompressScale: {x: 1.28, y: 0.48}
   successCompressTime: 0.035
-  successInflateScale: {x: 0.94, y: 1.14}
-  successInflateTime: 0.08
-  launchHoldTime: 0.02
-  postLaunchBreakDelay: 0.06
+  successInflateScale: {x: 0.8, y: 1.7}
+  successInflateTime: 0.055
+  successInflateLift: 0.06
+  bounceActiveDuration: 0.12
   maxCrumbleShakeX: 0.055
   maxCrumbleShakeY: 0.018
   crumbleShakeFrequency: 22

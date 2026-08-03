@@ -11,8 +11,8 @@ public sealed class CoopCrumbleRelayLaunchPlatform2D : MonoBehaviour
         Ready,
         OccupiedCrumbling,
         InflatingToLaunch,
-        Launching,
-        BreakingAfterLaunch,
+        BounceActive,
+        BreakingAfterSignal,
         BreakingOnTimeout,
         Broken
     }
@@ -30,15 +30,17 @@ public sealed class CoopCrumbleRelayLaunchPlatform2D : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float finalWarningNormalized = 0.8f;
     [SerializeField] private float respawnDelay = 2f;
 
-    [Header("Success Launch Visual")]
+    [Header("Bounce Visual")]
     [SerializeField] private Transform visualPivot;
     [SerializeField] private Vector2 waitingPressScale = new Vector2(1.1f, 0.76f);
-    [SerializeField] private Vector2 successCompressScale = new Vector2(1.16f, 0.68f);
+    [SerializeField] private Vector2 successCompressScale = new Vector2(1.28f, 0.48f);
     [SerializeField] private float successCompressTime = 0.035f;
-    [SerializeField] private Vector2 successInflateScale = new Vector2(0.94f, 1.14f);
-    [SerializeField] private float successInflateTime = 0.08f;
-    [SerializeField] private float launchHoldTime = 0.02f;
-    [SerializeField] private float postLaunchBreakDelay = 0.06f;
+    [SerializeField] private Vector2 successInflateScale = new Vector2(0.8f, 1.7f);
+    [SerializeField] private float successInflateTime = 0.055f;
+    [Tooltip("Small visual-only upward lift applied while the platform is inflated. Collision remains unchanged.")]
+    [SerializeField] private float successInflateLift = 0.06f;
+    [Tooltip("The brief window where this platform behaves like a JellyAutoJumpPlatform before breaking.")]
+    [SerializeField, Range(0.08f, 0.2f)] private float bounceActiveDuration = 0.12f;
 
     [Header("Crumble Visual")]
     [SerializeField] private float maxCrumbleShakeX = 0.055f;
@@ -106,6 +108,14 @@ public sealed class CoopCrumbleRelayLaunchPlatform2D : MonoBehaviour
         }
     }
 
+    private void FixedUpdate()
+    {
+        if (state == RelayPlatformState.BounceActive)
+        {
+            LaunchPlayersStandingOnPlatform();
+        }
+    }
+
     private void OnCollisionExit2D(Collision2D collision)
     {
         PlayerCharacter player = FindPlayer(collision.collider);
@@ -117,14 +127,9 @@ public sealed class CoopCrumbleRelayLaunchPlatform2D : MonoBehaviour
 
     public void ReceivePartnerLandingSignal(CoopCrumbleRelayLaunchPlatform2D sender)
     {
-        if (sender == null || sender.launchTargetPlatform != this || state == RelayPlatformState.Broken ||
-            state == RelayPlatformState.BreakingAfterLaunch || state == RelayPlatformState.BreakingOnTimeout)
-        {
-            return;
-        }
-
-        PlayerCharacter candidate = GetLaunchCandidate();
-        if (candidate == null)
+        if (state == RelayPlatformState.Broken || state == RelayPlatformState.BreakingAfterSignal ||
+            state == RelayPlatformState.BreakingOnTimeout ||
+            state == RelayPlatformState.InflatingToLaunch || state == RelayPlatformState.BounceActive)
         {
             return;
         }
@@ -134,7 +139,7 @@ public sealed class CoopCrumbleRelayLaunchPlatform2D : MonoBehaviour
             StopCoroutine(stateRoutine);
         }
 
-        stateRoutine = StartCoroutine(LaunchSequence(candidate));
+        stateRoutine = StartCoroutine(BounceSequence());
     }
 
     public void ResetPlatform()
@@ -195,30 +200,25 @@ public sealed class CoopCrumbleRelayLaunchPlatform2D : MonoBehaviour
         }
     }
 
-    private IEnumerator LaunchSequence(PlayerCharacter player)
+    private IEnumerator BounceSequence()
     {
         state = RelayPlatformState.InflatingToLaunch;
         yield return AnimateVisual(GetScaled(successCompressScale), restLocalPosition, successCompressTime);
-        yield return AnimateVisual(GetScaled(successInflateScale), restLocalPosition, successInflateTime);
 
-        if (launchHoldTime > 0f)
+        // The upward visual motion and the Jelly-style launch start in the same physics window.
+        state = RelayPlatformState.BounceActive;
+        LaunchPlayersStandingOnPlatform();
+        float activeEndTime = Time.time + bounceActiveDuration;
+        Vector3 inflatedPosition = restLocalPosition + Vector3.up * successInflateLift;
+        yield return AnimateVisual(GetScaled(successInflateScale), inflatedPosition, successInflateTime);
+
+        float remainingActiveTime = activeEndTime - Time.time;
+        if (remainingActiveTime > 0f)
         {
-            yield return new WaitForSeconds(launchHoldTime);
+            yield return new WaitForSeconds(remainingActiveTime);
         }
 
-        state = RelayPlatformState.Launching;
-        float launchPower = launchVerticalPowerOverride > 0f ? launchVerticalPowerOverride : player.MaxJumpPower;
-        player.ApplyMaxChargeAutoJump(player.CurrentMoveInput, launchPower);
-        PlayOneShot(launchSfx);
-
-        yield return new WaitForFixedUpdate();
-        yield return new WaitForFixedUpdate();
-        if (postLaunchBreakDelay > 0f)
-        {
-            yield return new WaitForSeconds(postLaunchBreakDelay);
-        }
-
-        BeginBreak(RelayPlatformState.BreakingAfterLaunch);
+        BeginBreak(RelayPlatformState.BreakingAfterSignal);
     }
 
     private void BeginBreak(RelayPlatformState breakState)
@@ -313,32 +313,46 @@ public sealed class CoopCrumbleRelayLaunchPlatform2D : MonoBehaviour
         }
     }
 
-    private PlayerCharacter GetLaunchCandidate()
+    private void LaunchPlayersStandingOnPlatform()
     {
+        bool launchedAnyPlayer = false;
         foreach (PlayerCharacter player in playersOnTop)
         {
             if (IsPlayerStandingOnThisPlatform(player))
             {
-                return player;
+                LaunchPlayer(player);
+                launchedAnyPlayer = true;
             }
         }
 
+        // Ground contact data can arrive one physics step later than the relay signal.
         PlayerCharacter[] allPlayers = FindObjectsByType<PlayerCharacter>(FindObjectsSortMode.None);
         for (int i = 0; i < allPlayers.Length; i++)
         {
             PlayerCharacter player = allPlayers[i];
-            if (IsPlayerStandingOnThisPlatform(player))
+            if (IsPlayerStandingOnThisPlatform(player) && !playersOnTop.Contains(player))
             {
-                return player;
+                LaunchPlayer(player);
+                launchedAnyPlayer = true;
             }
         }
 
-        return null;
+        if (launchedAnyPlayer)
+        {
+            PlayOneShot(launchSfx);
+        }
+    }
+
+    private void LaunchPlayer(PlayerCharacter player)
+    {
+        float launchPower = launchVerticalPowerOverride > 0f ? launchVerticalPowerOverride : player.MaxJumpPower;
+        player.ApplyMaxChargeAutoJump(player.CurrentMoveInput, launchPower);
     }
 
     private bool IsPlayerStandingOnThisPlatform(PlayerCharacter player)
     {
-        if (player == null || !player.IsAliveLike || solidCollider == null || !solidCollider.enabled)
+        if (player == null || !player.IsAliveLike || player.Velocity.y > maxAllowedRisingVelocity ||
+            solidCollider == null || !solidCollider.enabled)
         {
             return false;
         }
@@ -510,8 +524,8 @@ public sealed class CoopCrumbleRelayLaunchPlatform2D : MonoBehaviour
         launchVerticalPowerOverride = Mathf.Max(0f, launchVerticalPowerOverride);
         successCompressTime = Mathf.Max(0f, successCompressTime);
         successInflateTime = Mathf.Max(0f, successInflateTime);
-        launchHoldTime = Mathf.Max(0f, launchHoldTime);
-        postLaunchBreakDelay = Mathf.Max(0f, postLaunchBreakDelay);
+        successInflateLift = Mathf.Max(0f, successInflateLift);
+        bounceActiveDuration = Mathf.Clamp(bounceActiveDuration, 0.08f, 0.2f);
         ResolveReferences();
     }
 
