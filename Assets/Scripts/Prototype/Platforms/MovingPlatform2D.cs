@@ -35,6 +35,13 @@ public class MovingPlatform2D : MonoBehaviour
     [Header("Gizmos")]
     [SerializeField] private bool showGizmos = true;
 
+    [Header("Game Trajectory Preview")]
+    [SerializeField] private bool showTrajectoryInGame = true;
+    [SerializeField] private Color trajectoryColor = new Color(1f, 0.78f, 0.16f, 0.72f);
+    [SerializeField, Min(0.005f)] private float trajectoryWidth = 0.055f;
+    [SerializeField, Min(0.1f)] private float unlimitedTrajectoryLength = 6f;
+    [SerializeField] private int trajectorySortingOrder = 90;
+
     private const float MinMoveDistance = 0.0001f;
     private const float RiderProbePenetration = 0.04f;
     private readonly RaycastHit2D[] castHits = new RaycastHit2D[16];
@@ -44,6 +51,7 @@ public class MovingPlatform2D : MonoBehaviour
     private Rigidbody2D body;
     private Collider2D platformCollider;
     private Vector2 startPosition;
+    private MovingPlatformTrajectoryLine2D trajectoryPreview;
 
     public Vector2 MoveDirection => GetNormalizedMoveDirection();
     public float MoveSpeed => moveSpeed;
@@ -64,13 +72,62 @@ public class MovingPlatform2D : MonoBehaviour
         }
     }
 
+    private void OnDisable()
+    {
+        trajectoryPreview?.Hide();
+    }
+
+    private void OnDestroy()
+    {
+        trajectoryPreview?.Dispose();
+    }
+
     private void OnValidate()
     {
         moveSpeed = Mathf.Max(0f, moveSpeed);
         localDistance = Mathf.Max(0f, localDistance);
         arrivalTolerance = Mathf.Max(0f, arrivalTolerance);
+        trajectoryWidth = Mathf.Max(0.005f, trajectoryWidth);
+        unlimitedTrajectoryLength = Mathf.Max(0.1f, unlimitedTrajectoryLength);
         skinWidth = Mathf.Max(0f, skinWidth);
         riderProbeSize = new Vector2(Mathf.Max(0.01f, riderProbeSize.x), Mathf.Max(0.01f, riderProbeSize.y));
+    }
+
+    private void LateUpdate()
+    {
+        if (!showTrajectoryInGame)
+        {
+            trajectoryPreview?.Hide();
+            return;
+        }
+
+        if (trajectoryPreview == null)
+        {
+            trajectoryPreview = new MovingPlatformTrajectoryLine2D(transform);
+        }
+
+        Vector2 direction = GetNormalizedMoveDirection();
+        Vector2 pathStart = startPosition;
+        Vector2 pathEnd;
+        switch (limitMode)
+        {
+            case MovingPlatformLimitMode.LocalDistance:
+                pathEnd = pathStart + direction * localDistance;
+                break;
+            case MovingPlatformLimitMode.WorldTarget:
+                pathEnd = worldTargetPosition;
+                break;
+            default:
+                pathEnd = pathStart + direction * unlimitedTrajectoryLength;
+                break;
+        }
+
+        trajectoryPreview.DrawSegment(
+            pathStart,
+            pathEnd,
+            trajectoryColor,
+            trajectoryWidth,
+            trajectorySortingOrder);
     }
 
     private void FixedUpdate()

@@ -29,6 +29,13 @@ public sealed class CircularMovingPlatform2D : MonoBehaviour
     [Header("Gizmos")]
     [SerializeField] private bool showGizmos = true;
 
+    [Header("Game Trajectory Preview")]
+    [SerializeField] private bool showTrajectoryInGame = true;
+    [SerializeField] private Color trajectoryColor = new Color(1f, 0.78f, 0.16f, 0.72f);
+    [SerializeField, Min(0.005f)] private float trajectoryWidth = 0.055f;
+    [SerializeField, Range(12, 160)] private int trajectorySegments = 72;
+    [SerializeField] private int trajectorySortingOrder = 90;
+
     private const float MinMoveDistance = 0.0001f;
     private const float RiderProbePenetration = 0.04f;
     private readonly RaycastHit2D[] castHits = new RaycastHit2D[16];
@@ -42,6 +49,7 @@ public sealed class CircularMovingPlatform2D : MonoBehaviour
     private Collider2D platformCollider;
     private Vector2 fallbackCenter;
     private float currentAngleRadians;
+    private MovingPlatformTrajectoryLine2D trajectoryPreview;
 
     public float OrbitRadius => orbitRadius;
     public float AngularSpeedDegrees => angularSpeedDegrees;
@@ -61,6 +69,41 @@ public sealed class CircularMovingPlatform2D : MonoBehaviour
         {
             InitializeOrbit(snapToStartOnEnable);
         }
+    }
+
+    private void OnDisable()
+    {
+        trajectoryPreview?.Hide();
+        carriedBodies.Clear();
+        riderRelativePositions.Clear();
+        staleRiders.Clear();
+    }
+
+    private void OnDestroy()
+    {
+        trajectoryPreview?.Dispose();
+    }
+
+    private void LateUpdate()
+    {
+        if (!showTrajectoryInGame)
+        {
+            trajectoryPreview?.Hide();
+            return;
+        }
+
+        if (trajectoryPreview == null)
+        {
+            trajectoryPreview = new MovingPlatformTrajectoryLine2D(transform);
+        }
+
+        trajectoryPreview.DrawCircle(
+            GetCenterPosition(),
+            orbitRadius,
+            trajectorySegments,
+            trajectoryColor,
+            trajectoryWidth,
+            trajectorySortingOrder);
     }
 
     private void FixedUpdate()
@@ -387,6 +430,8 @@ public sealed class CircularMovingPlatform2D : MonoBehaviour
     {
         orbitRadius = Mathf.Max(0.01f, orbitRadius);
         angularSpeedDegrees = Mathf.Max(0f, angularSpeedDegrees);
+        trajectoryWidth = Mathf.Max(0.005f, trajectoryWidth);
+        trajectorySegments = Mathf.Clamp(trajectorySegments, 12, 160);
         skinWidth = Mathf.Max(0f, skinWidth);
         riderProbeSize = new Vector2(
             Mathf.Max(0.01f, riderProbeSize.x),

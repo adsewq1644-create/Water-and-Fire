@@ -466,3 +466,7 @@ MonoBehaviour:
   riderProbeSize: {x: 2.35, y: 0.18}
   riderProbeOffset: {x: 0, y: 0.5}
   showGizmos: 1
+  showTrajectoryInGame: 1
+  trajectoryColor: {r: 1, g: 0.78, b: 0.16, a: 0.72}
+  trajectoryWidth: 0.055
+  trajectorySortingOrder: 90

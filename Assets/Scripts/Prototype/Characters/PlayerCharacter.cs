@@ -340,6 +340,32 @@ public class PlayerCharacter : MonoBehaviour
         ApplyDiveBounce(velocity);
     }
 
+    public void ApplyMaxChargeAutoJump(float horizontalInput, float maxChargeVerticalPower)
+    {
+        if (!IsAliveLike || body == null)
+        {
+            return;
+        }
+
+        ClearDivePassThroughCollisions();
+        leafBounceCurveActive = false;
+        leafBounceAirControlLocked = false;
+        isDiving = false;
+        continueDiveAfterImpactThisFrame = false;
+        diveLandingStunTimer = 0f;
+        suppressDiveLandingStunThisImpact = false;
+        RestoreDefaultGravity();
+
+        Vector2 launchVelocity = LaunchChargedJump(
+            1f,
+            horizontalInput,
+            Mathf.Max(0f, maxChargeVerticalPower));
+        bouncePlatformGroundIgnoreTimer = Mathf.Max(
+            bouncePlatformGroundIgnoreTimer,
+            BouncePlatformGroundIgnoreTime);
+        StartDownSlamBounceLock(launchVelocity.y);
+    }
+
     public void ApplyDiveBounce(Vector2 velocity)
     {
         leafBounceCurveActive = false;
@@ -1240,10 +1266,14 @@ public class PlayerCharacter : MonoBehaviour
 
     private void LaunchChargedJump()
     {
-        float charge = JumpChargeNormalized;
-        float verticalVelocity = Mathf.Lerp(minJumpPower, maxJumpPower, charge);
+        LaunchChargedJump(JumpChargeNormalized, GetMoveInput(), null);
+    }
+
+    private Vector2 LaunchChargedJump(float charge, float direction, float? verticalPowerOverride)
+    {
+        charge = Mathf.Clamp01(charge);
+        float verticalVelocity = verticalPowerOverride ?? Mathf.Lerp(minJumpPower, maxJumpPower, charge);
         float horizontalCharge = Mathf.Lerp(minHorizontalChargeMultiplier, 1f, charge);
-        float direction = GetMoveInput();
         bool fullChargeJump = charge >= fullChargeThreshold;
         float trajectorySpeedScale = fullChargeJump ? GetFullChargeTrajectorySpeedScale() : 1f;
         float horizontalVelocity = Mathf.Approximately(direction, 0f)
@@ -1271,7 +1301,9 @@ public class PlayerCharacter : MonoBehaviour
         grounded = false;
         ClearMovingPlatformSupport();
         movingPlatformJumpDetachTimer = MovingPlatformJumpDetachTime;
-        body.linearVelocity = new Vector2(horizontalVelocity, verticalVelocity);
+        Vector2 launchVelocity = new Vector2(horizontalVelocity, verticalVelocity);
+        body.linearVelocity = launchVelocity;
+        return launchVelocity;
     }
 
     private void StartDive()
