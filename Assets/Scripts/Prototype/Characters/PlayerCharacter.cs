@@ -190,6 +190,7 @@ public class PlayerCharacter : MonoBehaviour
     public Vector3 LastSafePosition => hasLastSafePosition ? lastSafePosition : spawnPosition;
     public float LastDiveFallDistance => lastDiveFallDistance;
     public float CurrentMoveInput => GetMoveInput();
+    public float MaxJumpPower => maxJumpPower;
     public KeyCode RescueRequestKey => rescueRequestKey;
     public float JumpChargeNormalized => maxChargeTime <= 0f ? 1f : Mathf.Clamp01(jumpChargeTimer / maxChargeTime);
     public int JumpChargeStep => Mathf.Clamp(Mathf.FloorToInt(JumpChargeNormalized * 3f) + 1, 1, 3);
@@ -364,6 +365,11 @@ public class PlayerCharacter : MonoBehaviour
             bouncePlatformGroundIgnoreTimer,
             BouncePlatformGroundIgnoreTime);
         StartDownSlamBounceLock(launchVelocity.y);
+    }
+
+    public void ApplyMaxChargeAutoJump(float horizontalInput)
+    {
+        ApplyMaxChargeAutoJump(horizontalInput, maxJumpPower);
     }
 
     public void ApplyDiveBounce(Vector2 velocity)
